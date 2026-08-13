@@ -39,6 +39,36 @@ const edited = mergeStates(
 check('local edit wins the clash', () => assert.equal(edited.bookings[0].details.guest, 'Dana Whitfield-Smith'))
 check('no duplicate of the same id', () => assert.equal(edited.bookings.length, 1))
 
+console.log('stale local copy accepts the shared version')
+const stale = mergeStates(
+  { bookings: [booking('b1', 'Dana Whitfield')], events: [event('b1-0', 'b1', '2026-08-21')], deleted: [] },
+  { bookings: [booking('b1', 'Dana Whitfield, Westside')], events: [event('b1-0', 'b1', '2026-08-22')], deleted: [] },
+  { preferLocal: false },
+)
+check('shared details win when this device has no edits', () =>
+  assert.equal(stale.bookings[0].details.guest, 'Dana Whitfield, Westside'))
+check('shared event details win too', () => assert.equal(stale.events[0].date, '2026-08-22'))
+check('still no duplicates', () => {
+  assert.equal(stale.bookings.length, 1)
+  assert.equal(stale.events.length, 1)
+})
+check('a booking only this device has is still kept', () => {
+  const merged = mergeStates(
+    { bookings: [booking('b1', 'A'), booking('b9', 'Only here')], events: [], deleted: [] },
+    { bookings: [booking('b1', 'A')], events: [], deleted: [] },
+    { preferLocal: false },
+  )
+  assert.deepEqual(merged.bookings.map((b) => b.id).sort(), ['b1', 'b9'])
+})
+check('deletions still win over the shared copy', () => {
+  const merged = mergeStates(
+    { bookings: [], events: [], deleted: ['b1'] },
+    { bookings: [booking('b1', 'A')], events: [], deleted: [] },
+    { preferLocal: false },
+  )
+  assert.equal(merged.bookings.length, 0)
+})
+
 console.log('deletions')
 const afterDelete = mergeStates(
   { bookings: [], events: [], deleted: ['b2'] }, // this device removed Jordan Lee

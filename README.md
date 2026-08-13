@@ -22,8 +22,12 @@ load. Edits sync both ways.
   function replies 409 with their copy, and the client merges and retries.
 - Merging is a union by id: both devices' bookings survive, and deletions are
   recorded as tombstones so a removed booking is not resurrected by the next
-  device to sync. If two people edit the *same* booking at once, the one who
-  saves last wins that booking.
+  device to sync.
+- A device with no unsaved edits accepts the shared copy outright, so another
+  device's changes show up rather than being overwritten by a stale snapshot.
+  Only a device holding unsaved edits keeps its own version of a clashing
+  booking, which it then pushes up. If two people edit the same booking at the
+  same moment, the one who saves last wins that booking.
 - Every device also keeps its own local copy, so the calendar still opens when
   the connection or the function is unavailable. "This device only" opts out of
   sharing entirely.

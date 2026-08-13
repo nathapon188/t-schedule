@@ -146,11 +146,13 @@ export default function App() {
 
       versionRef.current = res.version
       const local = stateRef.current
-      const hasLocal = local.bookings.length > 0
-      const merged = adopt && !hasLocal ? { ...res.state, deleted: res.state.deleted || [] } : mergeStates(local, res.state)
+      // Unsaved local edits are kept; otherwise this copy is just a stale
+      // snapshot and the shared one is newer, so it wins.
+      const localDirty = fingerprint(local) !== syncedRef.current
+      const merged = mergeStates(local, res.state, { preferLocal: localDirty })
 
       applyState(merged)
-      syncedRef.current = fingerprint(res.state)
+      syncedRef.current = fingerprint(merged)
       setSync({ state: 'ready', message: savedAt(res.updatedAt) })
 
       if (!merged.events.length && !res.state.events.length) setShowGate(false)

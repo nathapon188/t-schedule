@@ -22,16 +22,21 @@ export function savePasscode(value) {
 }
 
 /**
- * Union by id, with the local copy winning any id present on both sides, then
- * anything either side deleted is removed. Without the tombstone list a delete
- * on one device would be resurrected by the next device that syncs.
+ * Union by id, then remove anything either side deleted. Without the tombstone
+ * list a delete on one device would be resurrected by the next device to sync.
+ *
+ * `preferLocal` decides who wins an id held by both. Pass false when this device
+ * has no unsaved edits: its copy is then just a stale snapshot, and keeping it
+ * would hide the other device's changes and push the old values back up.
  */
-export function mergeStates(local, remote) {
+export function mergeStates(local, remote, { preferLocal = true } = {}) {
   const deleted = new Set([...(remote.deleted || []), ...(local.deleted || [])])
+  const first = preferLocal ? local : remote
+  const second = preferLocal ? remote : local
 
   const bookings = []
   const seenBooking = new Set()
-  for (const booking of [...(local.bookings || []), ...(remote.bookings || [])]) {
+  for (const booking of [...(first.bookings || []), ...(second.bookings || [])]) {
     if (deleted.has(booking.id) || seenBooking.has(booking.id)) continue
     seenBooking.add(booking.id)
     bookings.push(booking)
@@ -40,7 +45,7 @@ export function mergeStates(local, remote) {
   const bookingIds = new Set(bookings.map((b) => b.id))
   const events = []
   const seenEvent = new Set()
-  for (const event of [...(local.events || []), ...(remote.events || [])]) {
+  for (const event of [...(first.events || []), ...(second.events || [])]) {
     if (deleted.has(event.id) || seenEvent.has(event.id)) continue
     // An event whose booking was removed elsewhere goes with it.
     if (event.bookingId && !bookingIds.has(event.bookingId)) continue
