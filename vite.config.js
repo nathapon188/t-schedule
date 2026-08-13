@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  // Relative asset paths, so the built app works from any folder: a GitHub
+  // Pages project URL, a subfolder on an internal server, or a file share.
+  base: './',
   // host: true also prints a LAN address, so a phone on the same network can
   // open the schedule link or scan the QR code.
   server: { port: 5173, open: true, host: true },

@@ -3,6 +3,13 @@
 Drop a photo of a catering form in, get a calendar with every booked day highlighted.
 Runs entirely in the browser: no server, no database, no data leaves the machine.
 
+Hosted at https://nathapon188.github.io/t-schedule/ — every push to `main` runs
+the tests and redeploys (`.github/workflows/deploy.yml`).
+
+Sharing note: a link is a snapshot. Whoever opens it gets their own copy in
+their own browser, so edits do not flow back. Two people cannot work on the same
+booking live; that would need a server.
+
 ## Run it
 
 ```
@@ -72,8 +79,9 @@ calendar. Re-parse rebuilds only the booking being edited.
 - **This browser** remembers every loaded booking automatically (localStorage).
 - **Save file / Open file** writes a `.json` you can keep on a shared drive.
 - **Copy link / Phone QR** encodes the whole schedule inside the URL hash, so
-  another device opens the same schedule with no backend. On localhost, replace
-  `localhost` in the address box with this PC's LAN IP first.
+  another device opens the same schedule with no backend. Served from GitHub
+  Pages the link works anywhere; running locally it points at `localhost`, so
+  swap in this PC's LAN IP using the address box before sharing it.
 - **Export .ics** hands the run sheet to Outlook or Google Calendar.
 
 ## Checks

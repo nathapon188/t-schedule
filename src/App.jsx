@@ -21,6 +21,10 @@ const VIEWS = ['Day', 'Week', 'Month', 'Year']
 export default function App() {
   // A shared link wins over whatever this browser remembers.
   const initial = useRef(stateFromHash() || loadLocal() || { bookings: [], events: [] }).current
+  // Was this page opened from a share link, or just from the bare address? The
+  // bare address carries no booking, which is the usual reason a phone shows an
+  // empty calendar.
+  const openedFromLink = useRef(/[#&]s=/.test(window.location.hash)).current
   const firstDate = initial.events.length ? [...initial.events].map((e) => e.date).sort()[0] : null
 
   const [bookings, setBookings] = useState(initial.bookings)
@@ -390,7 +394,13 @@ export default function App() {
 
             {isMobile && (
               <section className="mobile-detail">
-                {!events.length && <p className="alert">Nothing scheduled. Open a shared link, or import a form on desktop.</p>}
+                {!events.length && (
+                  <p className="alert">
+                    {openedFromLink
+                      ? 'That link did not contain a readable booking. Send a fresh one from the desktop.'
+                      : 'This address carries no booking. A schedule only travels in a share link, so on the desktop press Copy link or Phone QR and open that instead. Typing the plain address gives an empty calendar, because each device keeps its own copy.'}
+                  </p>
+                )}
                 {selected && (
                   <>
                     <h2>{formatLong(selected)}</h2>

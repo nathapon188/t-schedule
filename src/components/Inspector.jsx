@@ -184,17 +184,26 @@ export default function Inspector({
               <button type="button" className="ghost danger" onClick={onClear}>Clear all</button>
             </div>
           </header>
-          <p className="muted">Kept in this browser automatically. No database or server involved.</p>
+          <p className="muted">
+            Kept in this browser automatically. No database or server involved, so each device holds its own copy.
+          </p>
           <div className="button-row">
             <button type="button" className="ghost" disabled={!events.length} onClick={onSaveFile}>Save file</button>
             <button type="button" className="ghost" onClick={onPickJson}>Open file</button>
             <button type="button" className="ghost" disabled={!link} onClick={onCopyLink}>Copy link</button>
             <button type="button" className="ghost" disabled={!link} onClick={onQr}>Phone QR</button>
           </div>
+          <p className="muted">
+            To see this on a phone, send the <strong>Copy link</strong> address or scan the QR. The bookings travel inside
+            the link, so the plain site address opens an empty calendar.
+          </p>
 
           {localhostLink && (
             <label className="link-base">
-              <span>Address the phone should use (swap localhost for this PC's IP)</span>
+              <span>
+                This PC is serving on localhost, which a phone cannot reach. Replace it with this PC's IP (shown as the
+                Network address in the terminal) before copying the link.
+              </span>
               <input value={linkBase} onChange={(e) => onLinkBase(e.target.value)} />
             </label>
           )}
