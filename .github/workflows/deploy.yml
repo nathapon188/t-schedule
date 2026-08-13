@@ -28,6 +28,7 @@ jobs:
       - run: node scripts/test-parse.mjs
       - run: node scripts/test-bookings.mjs
       - run: node scripts/test-sync.mjs
+      - run: node scripts/test-dietary.mjs
 
   build:
     needs: test

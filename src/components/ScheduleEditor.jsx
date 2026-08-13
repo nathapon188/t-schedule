@@ -1,6 +1,7 @@
 import { formatLong, formatTime } from '../lib/dates.js'
 import { colourFor } from '../lib/colours.js'
 import { REQUEST_SOURCES } from '../lib/sources.js'
+import DietaryEditor from './DietaryEditor.jsx'
 
 const FIELDS = [
   ['guest', 'Name of guest/s'],
@@ -164,9 +165,25 @@ export default function ScheduleEditor({
                 }
               />
             </label>
+            <label className="wide">
+              <span>Notes</span>
+              <textarea
+                rows={3}
+                placeholder="Anything staff need on the day: access, contact, setup, allergy handling"
+                value={details.notes || ''}
+                onChange={(e) => onDetails({ ...details, notes: e.target.value })}
+              />
+            </label>
           </div>
         )}
       </section>
+
+      {activeBooking && (
+        <DietaryEditor
+          rows={details.dietaryList || []}
+          onChange={(rows) => onDetails({ ...details, dietaryList: rows })}
+        />
+      )}
     </>
   )
 }

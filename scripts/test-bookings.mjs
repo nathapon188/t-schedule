@@ -78,6 +78,23 @@ check('a v1 single-booking link still opens', () => {
   assert.equal(decodeState(legacy).events.length, 4)
 })
 
+console.log('notes and dietary list travel')
+bookings[0].details.notes = 'Sit down lunch, set up from 11:30. Call Jaz on arrival.'
+bookings[0].details.dietaryList = [
+  { name: 'Brett', requirement: 'Vegetarian' },
+  { name: 'Kim Teale', requirement: 'No garlic and lactose free milk for coffee' },
+  { name: 'Sarah Jane', requirement: '' },
+]
+const withNotes = decodeState(encodeState({ bookings, events }))
+check('notes survive the link', () =>
+  assert.equal(withNotes.bookings[0].details.notes, 'Sit down lunch, set up from 11:30. Call Jaz on arrival.'))
+check('dietary rows survive the link', () =>
+  assert.deepEqual(withNotes.bookings[0].details.dietaryList, bookings[0].details.dietaryList))
+check('a guest with no requirement is kept', () =>
+  assert.equal(withNotes.bookings[0].details.dietaryList[2].name, 'Sarah Jane'))
+check('the other booking has no dietary rows', () =>
+  assert.deepEqual(withNotes.bookings[1].details.dietaryList, []))
+
 console.log('ics export')
 const ics = buildIcs(events, bookings)
 check('one VEVENT per order', () => assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, events.length))
@@ -86,6 +103,8 @@ check('each event carries its own guest', () => {
   assert.ok(ics.includes('Jordan Lee'))
 })
 check('pax follows the right booking', () => assert.ok(ics.includes('Pax: 12 pax') && ics.includes('Pax: 7-8 pax')))
+check('notes reach the calendar entry', () => assert.ok(ics.includes('Sit down lunch')))
+check('dietary names reach the calendar entry', () => assert.ok(ics.includes('Brett') && ics.includes('Kim Teale')))
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed')
 process.exit(failures ? 1 : 0)

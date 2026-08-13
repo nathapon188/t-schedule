@@ -54,6 +54,11 @@ export function buildIcs(events, bookings = [], { durationMinutes = 30 } = {}) {
       details.emails?.length && `Email: ${details.emails.join(', ')}`,
       details.chargeBack && `Charge back: ${details.chargeBack}`,
       event.amount != null && `Amount: $${event.amount.toFixed(2)}`,
+      details.notes && `Notes: ${details.notes}`,
+      details.dietaryList?.length &&
+        `Dietary:\n${details.dietaryList
+          .map((r) => `  ${r.name}${r.requirement ? ` — ${r.requirement}` : ''}`)
+          .join('\n')}`,
     ]
       .filter(Boolean)
       .join('\n')

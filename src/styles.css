@@ -708,6 +708,28 @@ input:focus, textarea:focus { outline: 2px solid var(--sel); outline-offset: -1p
 .time-pill.teal { background: var(--teal-bg); color: #0e5f59; }
 .time-pill.red { background: var(--red-bg); color: #8f2a2a; }
 
+/* ------------------------------------------------- notes and dietary list */
+
+.paste-box { display: flex; flex-direction: column; gap: 6px; margin-bottom: 9px; }
+.paste-box textarea { font: 12.5px/1.5 Consolas, "Courier New", monospace; resize: vertical; }
+
+.diet-rows { display: flex; flex-direction: column; gap: 4px; }
+.diet-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 24px; gap: 4px; align-items: center; }
+
+.brief { display: flex; flex-direction: column; gap: 10px; margin: 0 0 14px; }
+.brief-card { background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 9px; padding: 10px 12px; }
+.brief-card header { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+.brief-card header strong { font-size: 13.5px; }
+.brief-notes { white-space: pre-line; font-size: 13px; margin: 0 0 7px; }
+.brief-diet { list-style: none; margin: 5px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 3px 14px; }
+.brief-diet li { display: flex; gap: 7px; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid var(--line); }
+.brief-diet li strong { min-width: 110px; font-weight: 600; }
+.brief-diet li span { color: var(--accent-ink); }
+.brief-diet li.plain span { color: var(--muted); }
+
+.shell.is-mobile .brief-diet { grid-template-columns: 1fr; }
+.shell.is-mobile .brief-diet li strong { min-width: 92px; }
+
 .mobile-days { display: flex; flex-wrap: wrap; gap: 6px; }
 .mobile-days button {
   background: #fff;

@@ -81,6 +81,30 @@ Australian order (day first) throughout:
 The "REQUESTED" and "CONFIRMATION" rows are ignored, so an internal note like
 "Jaz draft 13/08" is not mistaken for a booking date.
 
+## Notes and per-guest dietary
+
+Each booking has a free-text **Notes** box for anything staff need on the day,
+and a **Guests and dietary** list of name plus requirement rows.
+
+Paste the list straight off a function sheet and it is split into rows. The
+parser (`src/lib/dietary.js`) takes the leading capitalised words as the name and
+stops at the first dietary term, so `Mikey Von Bardeleben Dairy Free` keeps the
+three-word name, and a line that carries on from the one above is joined to it:
+
+```
+Kirsty Stewart Unable to eat pineapple
+
+or kiwi fruit          ->  Kirsty Stewart | Unable to eat pineapple or kiwi fruit
+```
+
+`Name - requirement` and `Name: requirement` are honoured when present, and a
+spaced dash is required so a hyphenated name stays whole. Rows stay editable
+afterwards, and "Load current" puts them back in the box to edit as text.
+
+Notes and dietary rows appear on the day's run sheet in Day view and on mobile,
+where the kitchen will actually read them, and both land in the .ics description
+and the share link. The rail shows a dietary count per booking.
+
 ## Requested by
 
 Each booking records who asked for the catering. Westside Hospital, Private
@@ -122,6 +146,7 @@ calendar. Re-parse rebuilds only the booking being edited.
 node scripts/test-parse.mjs                 # date, time and form parsing
 node scripts/test-bookings.mjs              # merging forms, dedupe, link and ics
 node scripts/test-sync.mjs                  # shared store merge and tombstones
+node scripts/test-dietary.mjs               # guest list parsing, wrapped lines
 node scripts/test-ocr.mjs path\to\form.png  # full OCR pass on a real image
 ```
 

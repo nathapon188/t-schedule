@@ -123,6 +123,11 @@ export default function Sidebar({
                       {orders === 1 ? '' : 's'}
                     </span>
                     {booking.details?.requestedBy && <span className="rail-source">{booking.details.requestedBy}</span>}
+                    {!!booking.details?.dietaryList?.length && (
+                      <span className="rail-source">
+                        {booking.details.dietaryList.filter((r) => r.requirement).length} dietary
+                      </span>
+                    )}
                   </span>
                 </button>
                 <button

@@ -11,7 +11,7 @@
 
 export const STORE_KEY = 't-schedule/v1'
 
-const DETAIL_KEYS = ['guest', 'pax', 'phone', 'emails', 'address', 'chargeBack', 'dietary', 'requestedBy', 'requested', 'confirmation', 'total']
+const DETAIL_KEYS = ['guest', 'pax', 'phone', 'emails', 'address', 'chargeBack', 'dietary', 'requestedBy', 'notes', 'dietaryList', 'requested', 'confirmation', 'total']
 
 export function emptyState() {
   return { v: 2, bookings: [], events: [] }
@@ -94,6 +94,8 @@ export function encodeState({ bookings = [], events = [] }) {
         c: d.chargeBack || undefined,
         di: d.dietary || undefined,
         rb: d.requestedBy || undefined,
+        n: d.notes || undefined,
+        dl: d.dietaryList?.length ? d.dietaryList.map((r) => [r.name || '', r.requirement || '']) : undefined,
         tot: d.total ?? undefined,
       }
     }),
@@ -120,6 +122,8 @@ function expandDetails(d = {}) {
     chargeBack: d.c || '',
     dietary: d.di || '',
     requestedBy: d.rb || '',
+    notes: d.n || '',
+    dietaryList: (d.dl || []).map(([name, requirement]) => ({ name: name || '', requirement: requirement || '' })),
     requested: '',
     confirmation: '',
     total: d.tot ?? null,

@@ -322,6 +322,7 @@ export function parseForm(text, { defaultYear = new Date().getFullYear() } = {})
     // draft note ("Jaz draft 13/08"), so they are kept apart.
     requestedBy: labelValue(lines, /requested\s*(?:by|from|for)\s*[:|]?/i) || matchSource(joined),
     requested: labelValue(lines, /^\s*requested\b(?!\s*(?:by|from|for)\b)\s*[:|]?/i),
+    notes: labelValue(lines, /^\s*(?:notes?|comments?|special\s+instructions?)\s*[:|]?/i),
     confirmation: labelValue(lines, /^\s*confirmation\s*[:|]?/i),
     total: totalMatch ? Number(totalMatch[1].replace(/,/g, '')) : null,
   }

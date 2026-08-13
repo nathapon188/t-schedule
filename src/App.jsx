@@ -7,6 +7,7 @@ import DayView from './components/DayView.jsx'
 import YearView from './components/YearView.jsx'
 import Inspector from './components/Inspector.jsx'
 import PasscodeGate from './components/PasscodeGate.jsx'
+import BookingBrief from './components/BookingBrief.jsx'
 import { parseForm } from './lib/parse.js'
 import { readImage } from './lib/ocr.js'
 import { downloadIcs, shareIcs } from './lib/ics.js'
@@ -15,7 +16,7 @@ import { MONTHS, fromKey, toKey, startOfMonth, startOfWeek, addDays, addMonths, 
 import { loadLocal, saveLocal, clearLocal, stateFromHash, shareLink, downloadJson, readJsonFile } from './lib/storage.js'
 import { loadPasscode, savePasscode, pullRemote, syncUp, mergeStates, fingerprint } from './lib/sync.js'
 
-const EMPTY_DETAILS = { guest: '', pax: '', phone: '', emails: [], address: '', chargeBack: '', dietary: '', requestedBy: '', requested: '', confirmation: '', total: null }
+const EMPTY_DETAILS = { guest: '', pax: '', phone: '', emails: [], address: '', chargeBack: '', dietary: '', requestedBy: '', notes: '', dietaryList: [], requested: '', confirmation: '', total: null }
 
 const MOBILE_WIDTH = 900
 const VIEWS = ['Day', 'Week', 'Month', 'Year']
@@ -535,7 +536,7 @@ export default function App() {
               <MonthView month={month} events={visibleEvents} selected={selected} onSelect={goTo} compact={isMobile} />
             )}
             {view === 'Week' && <WeekView anchor={anchor} events={visibleEvents} selected={selected} onSelect={goTo} />}
-            {view === 'Day' && <DayView anchor={selected || toKey(anchor)} events={visibleEvents} />}
+            {view === 'Day' && <DayView anchor={selected || toKey(anchor)} events={visibleEvents} bookings={bookings} />}
             {view === 'Year' && (
               <YearView
                 anchor={anchor}
@@ -577,6 +578,7 @@ export default function App() {
                     ) : (
                       <p className="muted">Nothing booked on this day.</p>
                     )}
+                    <BookingBrief bookings={bookings} events={visibleEvents} date={selected} />
                   </>
                 )}
                 {!!bookedDays.length && (
