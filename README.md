@@ -101,6 +101,16 @@ or kiwi fruit          ->  Kirsty Stewart | Unable to eat pineapple or kiwi frui
 spaced dash is required so a hyphenated name stays whole. Rows stay editable
 afterwards, and "Load current" puts them back in the box to edit as text.
 
+A **photo** of a guest list attaches to the booking being edited rather than
+becoming a booking of its own: `looksLikeDietaryList` treats text with no date
+row, no pick-up time and several name-and-requirement lines as a guest list.
+The import panel has a switch to force either reading. Guests already on the
+list are skipped by name, so importing twice does not double up.
+
+If a list did land as its own booking, select it and use **Move this booking
+into another**: guests, notes, orders and any blank fields fold into the booking
+you pick, and the empty one is removed.
+
 Notes and dietary rows appear on the day's run sheet in Day view and on mobile,
 where the kitchen will actually read them, and both land in the .ics description
 and the share link. The rail shows a dietary count per booking.

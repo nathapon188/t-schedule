@@ -12,6 +12,7 @@ import { parseForm } from './lib/parse.js'
 import { readImage } from './lib/ocr.js'
 import { downloadIcs, shareIcs } from './lib/ics.js'
 import { buildBooking } from './lib/bookings.js'
+import { parseDietary, mergeDietary, looksLikeDietaryList } from './lib/dietary.js'
 import { MONTHS, fromKey, toKey, startOfMonth, startOfWeek, addDays, addMonths, formatLong, formatTime } from './lib/dates.js'
 import { loadLocal, saveLocal, clearLocal, stateFromHash, shareLink, downloadJson, readJsonFile } from './lib/storage.js'
 import { loadPasscode, savePasscode, pullRemote, syncUp, mergeStates, fingerprint } from './lib/sync.js'
@@ -61,6 +62,7 @@ export default function App() {
   const [linkBase, setLinkBase] = useState(() => window.location.origin + window.location.pathname)
   const [qr, setQr] = useState(null)
   const [sourceFilter, setSourceFilter] = useState('')
+  const [importMode, setImportMode] = useState('auto') // auto | booking | dietary
 
   // Shared store
   const [passcode, setPasscode] = useState(() => loadPasscode())
@@ -236,6 +238,65 @@ export default function App() {
     setDeleted((list) => [...list, id])
   }
 
+  /** Guest list text folded into a booking's dietary rows, no new booking made. */
+  const attachDietary = useCallback(
+    (text, bookingId) => {
+      const target = bookings.find((b) => b.id === bookingId) || activeBooking
+      if (!target) {
+        setError('Select a booking first, then import the guest list into it.')
+        return false
+      }
+      const incoming = parseDietary(text)
+      if (!incoming.length) {
+        setError('No guest names found in that list.')
+        return false
+      }
+      const before = target.details.dietaryList || []
+      const { rows, added, skipped } = mergeDietary(before, incoming)
+      patchBooking(target.id, { details: { ...target.details, dietaryList: rows } })
+      setActiveId(target.id)
+      setError(null)
+      flash(
+        `Added ${added} guest${added === 1 ? '' : 's'} to ${target.details.guest || 'this booking'}` +
+          (skipped ? `, ${skipped} already listed.` : '.'),
+        { label: 'Undo', run: () => patchBooking(target.id, { details: { ...target.details, dietaryList: before } }) },
+      )
+      return true
+    },
+    [bookings, activeBooking],
+  )
+
+  /** Folds one booking into another: guests, notes, blank fields and orders. */
+  const mergeBookingInto = (sourceId, targetId) => {
+    const source = bookings.find((b) => b.id === sourceId)
+    const target = bookings.find((b) => b.id === targetId)
+    if (!source || !target || sourceId === targetId) return
+
+    const { rows, added, skipped } = mergeDietary(target.details.dietaryList || [], source.details.dietaryList || [])
+    const filled = {}
+    for (const key of ['pax', 'phone', 'address', 'chargeBack', 'requestedBy', 'dietary', 'guest']) {
+      if (!target.details[key] && source.details[key]) filled[key] = source.details[key]
+    }
+    const details = {
+      ...target.details,
+      ...filled,
+      dietaryList: rows,
+      notes: [target.details.notes, source.details.notes].filter(Boolean).join('\n'),
+      emails: [...new Set([...(target.details.emails || []), ...(source.details.emails || [])])],
+    }
+
+    setBookings((list) => list.filter((b) => b.id !== sourceId).map((b) => (b.id === targetId ? { ...b, details } : b)))
+    setEvents((list) =>
+      list.map((e) => (e.bookingId === sourceId ? { ...e, bookingId: targetId, colour: target.colour } : e)),
+    )
+    setDeleted((list) => [...list, sourceId])
+    setActiveId(targetId)
+    flash(
+      `Moved into ${target.details.guest || 'the booking'}: ${added} guest${added === 1 ? '' : 's'} added` +
+        (skipped ? `, ${skipped} already listed.` : '.'),
+    )
+  }
+
   const addForm = useCallback(
     (text, { replace = false } = {}) => {
       const parsed = parseForm(text)
@@ -334,7 +395,15 @@ export default function App() {
       setStatus({ stage: 'Starting', progress: 0 })
       try {
         const text = await readImage(file, setStatus)
-        addForm(text)
+        // A guest list has no dates or pick-up times, so it belongs on the
+        // booking being edited rather than becoming a booking of its own.
+        const asDietary =
+          importMode === 'dietary' || (importMode === 'auto' && !!activeBooking && looksLikeDietaryList(text))
+        if (asDietary) {
+          if (!attachDietary(text)) addForm(text)
+        } else {
+          addForm(text)
+        }
       } catch (err) {
         console.error(err)
         setError(`Could not read the image: ${err.message}. Paste the form text instead.`)
@@ -343,7 +412,7 @@ export default function App() {
         setStatus(null)
       }
     },
-    [addForm, applyState],
+    [addForm, applyState, attachDietary, activeBooking, importMode],
   )
 
   // Paste an image straight from the clipboard (Win+Shift+S then Ctrl+V).
@@ -614,6 +683,9 @@ export default function App() {
               onPickImage={() => fileInput.current?.click()}
               onPickJson={() => jsonInput.current?.click()}
               onSample={(text) => addForm(text)}
+              importMode={importMode}
+              onImportMode={setImportMode}
+              onMergeBooking={mergeBookingInto}
               details={details}
               onDetails={setDetails}
               events={events}

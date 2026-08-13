@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import ScheduleEditor from './ScheduleEditor.jsx'
 import { bookingLabel } from '../lib/bookings.js'
+import { formatShort } from '../lib/dates.js'
 import { SAMPLE_ONE_DAY, SAMPLE_TWO_DAYS, SAMPLE_RANGE } from '../samples.js'
 
 /** Right-hand panel: import, correct, edit, save. Hidden in the mobile layout. */
@@ -22,6 +24,9 @@ export default function Inspector({
   onPickImage,
   onPickJson,
   onSample,
+  importMode = 'auto',
+  onImportMode,
+  onMergeBooking,
   details,
   onDetails,
   events,
@@ -45,6 +50,8 @@ export default function Inspector({
   onClear,
   onClose,
 }) {
+  const [mergeTarget, setMergeTarget] = useState('')
+
   return (
     <aside className="inspector">
       <header className="inspector-head">
@@ -80,7 +87,30 @@ export default function Inspector({
               </div>
             </div>
           )}
-          <p className="muted">Each form you import is added to the calendar. Nothing already on it is removed.</p>
+          <div className="import-mode">
+            <span className="muted">Treat what I import as</span>
+            <div className="chips">
+              {[
+                ['auto', 'Work it out'],
+                ['booking', 'New booking'],
+                ['dietary', `Guest list for ${activeBooking?.details?.guest || 'this booking'}`],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`chip ${importMode === value ? 'on' : ''}`}
+                  onClick={() => onImportMode(value)}
+                  disabled={value === 'dietary' && !activeBooking}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="muted">
+            A catering form becomes a booking of its own. A guest list, which has no dates or pick-up times, is added to
+            the booking being edited instead.
+          </p>
 
           {status && (
             <div className="progress">
@@ -134,6 +164,38 @@ export default function Inspector({
               })}
             </div>
             <p className="muted">Details and Form text below apply to the selected booking.</p>
+
+            <label className="merge-row">
+              <span>Move this booking into another, keeping its guests, notes and orders</span>
+              <span className="merge-controls">
+                <select value={mergeTarget} onChange={(e) => setMergeTarget(e.target.value)}>
+                  <option value="">Choose a booking…</option>
+                  {bookings
+                    .filter((b) => b.id !== activeBooking?.id)
+                    .map((b) => {
+                      const { name, days } = bookingLabel(b, events)
+                      const own = events.filter((e) => e.bookingId === b.id).map((e) => e.date).sort()
+                      return (
+                        <option key={b.id} value={b.id}>
+                          {name}
+                          {own.length ? ` · ${formatShort(own[0])}${days > 1 ? ` +${days - 1}` : ''}` : ' · no dates'}
+                        </option>
+                      )
+                    })}
+                </select>
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={!mergeTarget}
+                  onClick={() => {
+                    onMergeBooking(activeBooking.id, mergeTarget)
+                    setMergeTarget('')
+                  }}
+                >
+                  Move
+                </button>
+              </span>
+            </label>
           </section>
         )}
 

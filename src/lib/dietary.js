@@ -71,6 +71,38 @@ export function formatDietary(rows = []) {
   return rows.map((r) => [r.name, r.requirement].filter(Boolean).join(' ')).join('\n')
 }
 
+/**
+ * True when text reads as a guest list rather than a catering form: several
+ * name-and-requirement rows, and none of the things a form always has (a date
+ * row, pick-up times, a catering delivery block). Used so a photo of a sit-down
+ * lunch list attaches to the booking being edited instead of starting a new one.
+ */
+export function looksLikeDietaryList(text = '') {
+  const flat = String(text)
+  if (/catering\s*(form|delivery|order)/i.test(flat)) return false
+  if (/\b\d{1,2}\s*[:.]\s*\d{2}\s*(am|pm)?\b/i.test(flat)) return false
+  if (/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}\b/i.test(flat)) return false
+  if (/\b\d{1,2}\s*(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i.test(flat)) return false
+  if (/\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/.test(flat)) return false
+
+  const rows = parseDietary(flat)
+  const named = rows.filter((r) => r.name)
+  const withRequirement = rows.filter((r) => r.requirement)
+  return named.length >= 2 && withRequirement.length >= 1
+}
+
+/** Adds rows to an existing list, skipping guests already on it. */
+export function mergeDietary(existing = [], incoming = []) {
+  const seen = new Set(existing.map((r) => (r.name || '').trim().toLowerCase()).filter(Boolean))
+  const added = incoming.filter((r) => {
+    const key = (r.name || '').trim().toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return { rows: [...existing, ...added], added: added.length, skipped: incoming.length - added.length }
+}
+
 /** "7 guests, 4 vegetarian" style summary for the sidebar and run sheet. */
 export function dietarySummary(rows = []) {
   const withRequirement = rows.filter((r) => r.requirement)
