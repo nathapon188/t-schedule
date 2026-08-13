@@ -1,0 +1,23 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Never commit real bookings: saved schedules and imported forms stay local.
+*.json.bak
+schedules/
+catering-*.json
+*.png
+*.jpg
+*.jpeg
+*.pdf
+!public/**
+
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+.claude/
