@@ -27,6 +27,7 @@ jobs:
       - run: npm ci
       - run: node scripts/test-parse.mjs
       - run: node scripts/test-bookings.mjs
+      - run: node scripts/test-sync.mjs
 
   build:
     needs: test

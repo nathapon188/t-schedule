@@ -19,7 +19,9 @@ export function emptyState() {
 
 function migrate(saved) {
   if (!saved) return null
-  if (Array.isArray(saved.bookings) && Array.isArray(saved.events)) return { v: 2, ...saved }
+  if (Array.isArray(saved.bookings) && Array.isArray(saved.events)) {
+    return { v: 2, deleted: [], ...saved }
+  }
   // v1: one booking held at the top level.
   if (Array.isArray(saved.events)) {
     const id = 'b1'
@@ -27,6 +29,7 @@ function migrate(saved) {
       v: 2,
       bookings: [{ id, details: saved.details || {}, rawText: saved.rawText || '' }],
       events: saved.events.map((e) => ({ ...e, bookingId: e.bookingId || id, colour: e.colour || 'green' })),
+      deleted: [],
     }
   }
   return null
@@ -42,7 +45,10 @@ export function loadLocal() {
 
 export function saveLocal(state) {
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({ v: 2, bookings: state.bookings, events: state.events }))
+    localStorage.setItem(
+      STORE_KEY,
+      JSON.stringify({ v: 2, bookings: state.bookings, events: state.events, deleted: state.deleted || [] }),
+    )
     return true
   } catch {
     return false // private mode or quota: not worth interrupting the user

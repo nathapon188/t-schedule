@@ -26,8 +26,14 @@ export default function Inspector({
   onDetails,
   events,
   onEvents,
+  onRemoveEvent,
   selected,
   onSelect,
+  sync,
+  syncLabel,
+  onConnect,
+  onDisconnect,
+  onSyncNow,
   link,
   linkBase,
   onLinkBase,
@@ -136,6 +142,7 @@ export default function Inspector({
           onDetails={onDetails}
           events={events}
           onEvents={onEvents}
+          onRemoveEvent={onRemoveEvent}
           bookings={bookings}
           activeBooking={activeBooking}
           selected={selected}
@@ -184,8 +191,24 @@ export default function Inspector({
               <button type="button" className="ghost danger" onClick={onClear}>Clear all</button>
             </div>
           </header>
+          <div className="sync-row">
+            <span className={`sync-chip ${sync?.state || 'local'}`}>
+              <span className="sync-dot" />
+              {syncLabel || 'This device only'}
+            </span>
+            {sync?.state === 'local' || sync?.state === 'unauthorised' ? (
+              <button type="button" className="ghost" onClick={onConnect}>Connect shared</button>
+            ) : (
+              <>
+                <button type="button" className="ghost" onClick={onSyncNow}>Sync now</button>
+                <button type="button" className="ghost" onClick={onDisconnect}>Disconnect</button>
+              </>
+            )}
+          </div>
           <p className="muted">
-            Kept in this browser automatically. No database or server involved, so each device holds its own copy.
+            {sync?.state === 'ready'
+              ? `Shared with everyone who has the passcode: open the site on any device and the same bookings load. ${sync.message || ''}`
+              : 'Not shared: bookings stay in this browser only. Connect to work from the same calendar on every device.'}
           </p>
           <div className="button-row">
             <button type="button" className="ghost" disabled={!events.length} onClick={onSaveFile}>Save file</button>

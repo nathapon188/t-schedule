@@ -15,7 +15,17 @@ const FIELDS = [
 
 const colourOf = (event) => event.colour || colourFor(event.title)
 
-export default function ScheduleEditor({ details, onDetails, events, onEvents, bookings, activeBooking, selected, onSelect }) {
+export default function ScheduleEditor({
+  details,
+  onDetails,
+  events,
+  onEvents,
+  onRemoveEvent,
+  bookings,
+  activeBooking,
+  selected,
+  onSelect,
+}) {
   const sorted = [...events].sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))
   const grouped = sorted.reduce((acc, event) => {
     ;(acc[event.date] ||= []).push(event)
@@ -25,7 +35,9 @@ export default function ScheduleEditor({ details, onDetails, events, onEvents, b
   const guestOf = (event) => bookings.find((b) => b.id === event.bookingId)?.details?.guest || ''
 
   const update = (id, patch) => onEvents(events.map((e) => (e.id === id ? { ...e, ...patch } : e)))
-  const remove = (id) => onEvents(events.filter((e) => e.id !== id))
+  // Goes through onRemoveEvent so the deletion is recorded and does not come
+  // back from another device on the next sync.
+  const remove = (id) => (onRemoveEvent ? onRemoveEvent(id) : onEvents(events.filter((e) => e.id !== id)))
   const addEvent = () => {
     const date = selected || sorted[0]?.date || new Date().toISOString().slice(0, 10)
     onEvents([

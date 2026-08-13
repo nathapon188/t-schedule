@@ -3,12 +3,40 @@
 Drop a photo of a catering form in, get a calendar with every booked day highlighted.
 Runs entirely in the browser: no server, no database, no data leaves the machine.
 
-Hosted at https://nathapon188.github.io/t-schedule/ — every push to `main` runs
-the tests and redeploys (`.github/workflows/deploy.yml`).
+Hosted at https://tbooking.netlify.app/ (Netlify, with the shared store below).
+The GitHub Pages workflow in `.github/workflows/deploy.yml` is an alternative
+static deploy, but Pages cannot run the function, so it has no shared calendar.
 
-Sharing note: a link is a snapshot. Whoever opens it gets their own copy in
-their own browser, so edits do not flow back. Two people cannot work on the same
-booking live; that would need a server.
+## Shared calendar
+
+Open the site on any device, enter the team passcode once, and the same bookings
+load. Edits sync both ways.
+
+- `netlify/functions/schedule.mjs` keeps one JSON document in Netlify Blobs and
+  requires the `x-schedule-key` header to match the `SCHEDULE_PASSCODE`
+  environment variable. Without that variable set the function refuses every
+  request rather than serving guest details openly.
+- `src/lib/sync.js` pulls on load, on tab focus and every 20 seconds, and pushes
+  local edits 1.2s after you stop typing.
+- Writes carry the version they were based on. If someone else saved first the
+  function replies 409 with their copy, and the client merges and retries.
+- Merging is a union by id: both devices' bookings survive, and deletions are
+  recorded as tombstones so a removed booking is not resurrected by the next
+  device to sync. If two people edit the *same* booking at once, the one who
+  saves last wins that booking.
+- Every device also keeps its own local copy, so the calendar still opens when
+  the connection or the function is unavailable. "This device only" opts out of
+  sharing entirely.
+
+### Setting the passcode
+
+In Netlify: Site configuration → Environment variables → add `SCHEDULE_PASSCODE`
+with a value you share with the team, then redeploy. It is never committed. To
+rotate it, change the variable and each device enters the new one once.
+
+A share link is still available and is now a snapshot: whoever opens it gets
+their own copy of that booking, which is useful for sending a single run sheet to
+someone who should not have the passcode.
 
 ## Run it
 
@@ -89,6 +117,7 @@ calendar. Re-parse rebuilds only the booking being edited.
 ```
 node scripts/test-parse.mjs                 # date, time and form parsing
 node scripts/test-bookings.mjs              # merging forms, dedupe, link and ics
+node scripts/test-sync.mjs                  # shared store merge and tombstones
 node scripts/test-ocr.mjs path\to\form.png  # full OCR pass on a real image
 ```
 
@@ -101,5 +130,7 @@ internet once.
 - `src/lib/dates.js` — date maths and AU formatting (Monday-first weeks)
 - `src/lib/ocr.js` — Tesseract worker, upscales small images first
 - `src/lib/storage.js` — localStorage, JSON file, URL link encoding
+- `src/lib/sync.js` — shared store client, merge and conflict retry
+- `netlify/functions/schedule.mjs` — the shared store itself
 - `src/lib/ics.js` — calendar export
 - `src/components/` — sidebar, month/week/day/year views, editing panel

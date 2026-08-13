@@ -6,29 +6,44 @@ import WeekView from './components/WeekView.jsx'
 import DayView from './components/DayView.jsx'
 import YearView from './components/YearView.jsx'
 import Inspector from './components/Inspector.jsx'
+import PasscodeGate from './components/PasscodeGate.jsx'
 import { parseForm } from './lib/parse.js'
 import { readImage } from './lib/ocr.js'
 import { downloadIcs } from './lib/ics.js'
 import { buildBooking } from './lib/bookings.js'
 import { MONTHS, fromKey, toKey, startOfMonth, startOfWeek, addDays, addMonths, formatLong, formatTime } from './lib/dates.js'
 import { loadLocal, saveLocal, clearLocal, stateFromHash, shareLink, downloadJson, readJsonFile } from './lib/storage.js'
+import { loadPasscode, savePasscode, pullRemote, syncUp, mergeStates, fingerprint } from './lib/sync.js'
 
 const EMPTY_DETAILS = { guest: '', pax: '', phone: '', emails: [], address: '', chargeBack: '', dietary: '', requestedBy: '', requested: '', confirmation: '', total: null }
 
 const MOBILE_WIDTH = 900
 const VIEWS = ['Day', 'Week', 'Month', 'Year']
+const POLL_MS = 20000
+const PUSH_DEBOUNCE_MS = 1200
+
+const SYNC_LABELS = {
+  local: 'This device only',
+  connecting: 'Connecting…',
+  ready: 'Shared',
+  saving: 'Saving…',
+  unauthorised: 'Passcode needed',
+  not_configured: 'Not set up',
+  unavailable: 'No shared store',
+  offline: 'Offline',
+  error: 'Sync error',
+  too_large: 'Too large to sync',
+}
 
 export default function App() {
   // A shared link wins over whatever this browser remembers.
-  const initial = useRef(stateFromHash() || loadLocal() || { bookings: [], events: [] }).current
-  // Was this page opened from a share link, or just from the bare address? The
-  // bare address carries no booking, which is the usual reason a phone shows an
-  // empty calendar.
+  const initial = useRef(stateFromHash() || loadLocal() || { bookings: [], events: [], deleted: [] }).current
   const openedFromLink = useRef(/[#&]s=/.test(window.location.hash)).current
   const firstDate = initial.events.length ? [...initial.events].map((e) => e.date).sort()[0] : null
 
   const [bookings, setBookings] = useState(initial.bookings)
   const [events, setEvents] = useState(initial.events)
+  const [deleted, setDeleted] = useState(initial.deleted || [])
   const [activeId, setActiveId] = useState(initial.bookings[initial.bookings.length - 1]?.id || null)
 
   const [imageUrl, setImageUrl] = useState(null)
@@ -46,8 +61,20 @@ export default function App() {
   const [qr, setQr] = useState(null)
   const [sourceFilter, setSourceFilter] = useState('')
 
+  // Shared store
+  const [passcode, setPasscode] = useState(() => loadPasscode())
+  const [sync, setSync] = useState({ state: loadPasscode() ? 'connecting' : 'local', message: '' })
+  const [showGate, setShowGate] = useState(() => !loadPasscode() && !initial.events.length && !openedFromLink)
+
   const fileInput = useRef(null)
   const jsonInput = useRef(null)
+  const stateRef = useRef({ bookings, events, deleted })
+  const passcodeRef = useRef(passcode)
+  const versionRef = useRef(0)
+  const syncedRef = useRef('')
+
+  stateRef.current = { bookings, events, deleted }
+  passcodeRef.current = passcode
 
   const isMobile = viewMode === 'mobile'
   const emulating = isMobile && wideScreen
@@ -63,9 +90,10 @@ export default function App() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  // Local copy is kept regardless of sync, so the app still works offline.
   useEffect(() => {
-    saveLocal({ bookings, events })
-  }, [bookings, events])
+    saveLocal({ bookings, events, deleted })
+  }, [bookings, events, deleted])
 
   const flash = (message, action = null) => setNote({ message, action })
 
@@ -74,6 +102,110 @@ export default function App() {
     const timer = setTimeout(() => setNote(null), 9000)
     return () => clearTimeout(timer)
   }, [note])
+
+  /* ----------------------------------------------------------- shared store */
+
+  const applyState = useCallback((next) => {
+    setBookings(next.bookings)
+    setEvents(next.events)
+    setDeleted(next.deleted || [])
+    setActiveId((current) => (next.bookings.some((b) => b.id === current) ? current : next.bookings[next.bookings.length - 1]?.id || null))
+  }, [])
+
+  const savedAt = (iso) =>
+    iso ? `Shared, saved ${new Date(iso).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}` : 'Shared'
+
+  const push = useCallback(async (override) => {
+    const code = passcodeRef.current
+    if (!code) return
+    const state = override || stateRef.current
+    setSync((s) => ({ ...s, state: 'saving' }))
+    const res = await syncUp(state, versionRef.current, code)
+    if (res.status === 'ok') {
+      versionRef.current = res.version
+      if (res.merged) applyState(res.state)
+      syncedRef.current = fingerprint(res.state)
+      setSync({ state: 'ready', message: savedAt(res.updatedAt) })
+    } else {
+      setSync({ state: res.status, message: res.message || '' })
+    }
+  }, [applyState])
+
+  const pull = useCallback(
+    async (code = passcodeRef.current, { adopt = false } = {}) => {
+      if (!code) return
+      setSync((s) => ({ ...s, state: s.state === 'ready' ? 'ready' : 'connecting' }))
+      const res = await pullRemote(code)
+      if (res.status !== 'ok') {
+        setSync({ state: res.status, message: res.message || '' })
+        if (res.status === 'unauthorised') setShowGate(true)
+        return res
+      }
+
+      versionRef.current = res.version
+      const local = stateRef.current
+      const hasLocal = local.bookings.length > 0
+      const merged = adopt && !hasLocal ? { ...res.state, deleted: res.state.deleted || [] } : mergeStates(local, res.state)
+
+      applyState(merged)
+      syncedRef.current = fingerprint(res.state)
+      setSync({ state: 'ready', message: savedAt(res.updatedAt) })
+
+      if (!merged.events.length && !res.state.events.length) setShowGate(false)
+      if (merged.events.length) {
+        const first = [...merged.events].map((e) => e.date).sort()[0]
+        setSelected((current) => current || first)
+      }
+      // Local had something the shared copy did not: put it up straight away.
+      if (fingerprint(merged) !== fingerprint(res.state)) push(merged)
+      return res
+    },
+    [applyState, push],
+  )
+
+  // First load, then keep an eye on it while the tab is visible.
+  useEffect(() => {
+    if (!passcode) return
+    pull(passcode, { adopt: true })
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') pull(passcode)
+    }, POLL_MS)
+    const onVisible = () => document.visibilityState === 'visible' && pull(passcode)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [passcode, pull])
+
+  // Local edits go up after a short pause, so typing does not fire a request per keystroke.
+  useEffect(() => {
+    if (!passcode) return
+    if (fingerprint({ bookings, events, deleted }) === syncedRef.current) return
+    const timer = setTimeout(() => push(), PUSH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [bookings, events, deleted, passcode, push])
+
+  const connect = async (code) => {
+    savePasscode(code)
+    setPasscode(code)
+    passcodeRef.current = code
+    const res = await pull(code, { adopt: true })
+    if (res?.status === 'ok') {
+      setShowGate(false)
+      flash('Connected to the shared calendar.')
+    }
+  }
+
+  const useDeviceOnly = () => {
+    savePasscode('')
+    setPasscode('')
+    passcodeRef.current = ''
+    setSync({ state: 'local', message: '' })
+    setShowGate(false)
+  }
+
+  /* ------------------------------------------------------------- schedule */
 
   const goTo = (key) => {
     setSelected(key)
@@ -86,13 +218,19 @@ export default function App() {
     if (activeBooking) patchBooking(activeBooking.id, { details: next })
   }
 
+  // Deletions are recorded so another device does not sync them back in.
   const removeBooking = (id) => {
     setBookings((list) => list.filter((b) => b.id !== id))
     setEvents((list) => list.filter((e) => e.bookingId !== id))
+    setDeleted((list) => [...list, id])
     if (activeId === id) setActiveId(null)
   }
 
-  /** Adds a form to the calendar, keeping everything already on it. */
+  const removeEvent = (id) => {
+    setEvents((list) => list.filter((e) => e.id !== id))
+    setDeleted((list) => [...list, id])
+  }
+
   const addForm = useCallback(
     (text, { replace = false } = {}) => {
       const parsed = parseForm(text)
@@ -138,16 +276,17 @@ export default function App() {
     [bookings, events],
   )
 
-  /** Re-parses the active booking's text in place, leaving other bookings alone. */
   const reparseActive = () => {
     if (!activeBooking) return
     const parsed = parseForm(activeBooking.rawText || '')
     const colour = activeBooking.colour
+    const dropped = events.filter((e) => e.bookingId === activeBooking.id).map((e) => e.id)
     patchBooking(activeBooking.id, { details: parsed.details })
     setEvents((list) => [
       ...list.filter((e) => e.bookingId !== activeBooking.id),
-      ...parsed.events.map((e, i) => ({ ...e, id: `${activeBooking.id}-${i}`, bookingId: activeBooking.id, colour })),
+      ...parsed.events.map((e, i) => ({ ...e, id: `${activeBooking.id}-r${i}`, bookingId: activeBooking.id, colour })),
     ])
+    setDeleted((list) => [...list, ...dropped])
     if (parsed.events.length) {
       const first = parsed.events.map((e) => e.date).sort()[0]
       setAnchor(fromKey(first))
@@ -164,9 +303,7 @@ export default function App() {
       if (file.name?.toLowerCase().endsWith('.json')) {
         try {
           const loaded = await readJsonFile(file)
-          setBookings(loaded.bookings)
-          setEvents(loaded.events)
-          setActiveId(loaded.bookings[loaded.bookings.length - 1]?.id || null)
+          applyState({ ...loaded, deleted: loaded.deleted || [] })
           if (loaded.events.length) {
             const first = [...loaded.events].map((e) => e.date).sort()[0]
             setAnchor(fromKey(first))
@@ -201,7 +338,7 @@ export default function App() {
         setStatus(null)
       }
     },
-    [addForm],
+    [addForm, applyState],
   )
 
   // Paste an image straight from the clipboard (Win+Shift+S then Ctrl+V).
@@ -236,6 +373,7 @@ export default function App() {
 
   const clearAll = () => {
     clearLocal()
+    setDeleted([...deleted, ...bookings.map((b) => b.id), ...events.map((e) => e.id)])
     setBookings([])
     setEvents([])
     setActiveId(null)
@@ -267,8 +405,6 @@ export default function App() {
     setSelected(toKey(now))
   }
 
-  // Filtering by requester only changes what the calendar shows; the editing
-  // panel always lists every order so nothing goes missing behind a filter.
   const sources = useMemo(
     () => [...new Set(bookings.map((b) => b.details?.requestedBy).filter(Boolean))].sort(),
     [bookings],
@@ -299,6 +435,7 @@ export default function App() {
   }, [view, anchor, month, selected])
 
   const localhostLink = /localhost|127\.0\.0\.1/.test(linkBase)
+  const syncBad = ['unauthorised', 'not_configured', 'offline', 'error', 'too_large'].includes(sync.state)
 
   return (
     <div className={`shell ${isMobile ? 'is-mobile' : 'is-desktop'} ${emulating ? 'emulating' : ''}`}>
@@ -342,6 +479,16 @@ export default function App() {
           </div>
 
           <div className="toolbar-right">
+            <button
+              type="button"
+              className={`sync-chip ${sync.state} ${syncBad ? 'bad' : ''}`}
+              title={sync.message || SYNC_LABELS[sync.state]}
+              onClick={() => (passcode ? pull() : setShowGate(true))}
+            >
+              <span className="sync-dot" />
+              {SYNC_LABELS[sync.state] || sync.state}
+            </button>
+
             <div className="segmented" role="group" aria-label="Calendar view">
               {VIEWS.map((name) => (
                 <button key={name} type="button" className={view === name ? 'on' : ''} onClick={() => setView(name)}>
@@ -396,9 +543,11 @@ export default function App() {
               <section className="mobile-detail">
                 {!events.length && (
                   <p className="alert">
-                    {openedFromLink
-                      ? 'That link did not contain a readable booking. Send a fresh one from the desktop.'
-                      : 'This address carries no booking. A schedule only travels in a share link, so on the desktop press Copy link or Phone QR and open that instead. Typing the plain address gives an empty calendar, because each device keeps its own copy.'}
+                    {sync.state === 'ready'
+                      ? 'The shared calendar is empty. Import a form on the desktop and it will appear here.'
+                      : passcode
+                        ? 'Not connected to the shared calendar yet. Tap the status button above to retry.'
+                        : 'Tap the status button above and enter the team passcode to load the shared bookings.'}
                   </p>
                 )}
                 {selected && (
@@ -459,6 +608,7 @@ export default function App() {
               onDetails={setDetails}
               events={events}
               onEvents={setEvents}
+              onRemoveEvent={removeEvent}
               selected={selected}
               onSelect={goTo}
               link={link}
@@ -471,10 +621,26 @@ export default function App() {
               onSaveFile={() => downloadJson({ bookings, events })}
               onClear={clearAll}
               onClose={() => setInspectorOpen(false)}
+              sync={sync}
+              syncLabel={SYNC_LABELS[sync.state]}
+              onConnect={() => setShowGate(true)}
+              onDisconnect={useDeviceOnly}
+              onSyncNow={() => pull()}
             />
           )}
         </div>
       </div>
+
+      {showGate && (
+        <PasscodeGate
+          status={sync.state}
+          message={sync.message}
+          onConnect={connect}
+          onSkip={useDeviceOnly}
+          onClose={() => setShowGate(false)}
+          canClose={!!events.length || !!passcode}
+        />
+      )}
 
       <input
         ref={fileInput}
