@@ -197,7 +197,7 @@ export default function Inspector({
               {syncLabel || 'This device only'}
             </span>
             {sync?.state === 'local' || sync?.state === 'unauthorised' ? (
-              <button type="button" className="ghost" onClick={onConnect}>Connect shared</button>
+              <button type="button" className="ghost" onClick={onConnect}>Share with other devices</button>
             ) : (
               <>
                 <button type="button" className="ghost" onClick={onSyncNow}>Sync now</button>

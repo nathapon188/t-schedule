@@ -9,7 +9,7 @@ import Inspector from './components/Inspector.jsx'
 import PasscodeGate from './components/PasscodeGate.jsx'
 import { parseForm } from './lib/parse.js'
 import { readImage } from './lib/ocr.js'
-import { downloadIcs } from './lib/ics.js'
+import { downloadIcs, shareIcs } from './lib/ics.js'
 import { buildBooking } from './lib/bookings.js'
 import { MONTHS, fromKey, toKey, startOfMonth, startOfWeek, addDays, addMonths, formatLong, formatTime } from './lib/dates.js'
 import { loadLocal, saveLocal, clearLocal, stateFromHash, shareLink, downloadJson, readJsonFile } from './lib/storage.js'
@@ -23,7 +23,7 @@ const POLL_MS = 20000
 const PUSH_DEBOUNCE_MS = 1200
 
 const SYNC_LABELS = {
-  local: 'This device only',
+  local: 'Not shared',
   connecting: 'Connecting…',
   ready: 'Shared',
   saving: 'Saving…',
@@ -64,7 +64,9 @@ export default function App() {
   // Shared store
   const [passcode, setPasscode] = useState(() => loadPasscode())
   const [sync, setSync] = useState({ state: loadPasscode() ? 'connecting' : 'local', message: '' })
-  const [showGate, setShowGate] = useState(() => !loadPasscode() && !initial.events.length && !openedFromLink)
+  // Ask on every device that has not joined yet, including one that already has
+  // local bookings: that device is the one holding data the others need.
+  const [showGate, setShowGate] = useState(() => !loadPasscode() && !openedFromLink)
 
   const fileInput = useRef(null)
   const jsonInput = useRef(null)
@@ -362,6 +364,15 @@ export default function App() {
     }
   }
 
+  // On a phone this opens the share sheet, so the run sheet can go straight into
+  // Outlook or a message. On a desktop it saves the file.
+  const exportSchedule = async () => {
+    const how = await shareIcs(events, bookings, {
+      text: details.guest ? `Catering for ${details.guest}` : 'Catering schedule',
+    })
+    if (how === 'downloaded') flash('Calendar file saved.')
+  }
+
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(link)
@@ -503,12 +514,7 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              className="ghost desktop-only"
-              disabled={!events.length}
-              onClick={() => downloadIcs(events, bookings)}
-            >
+            <button type="button" className="ghost" disabled={!events.length} onClick={exportSchedule}>
               Export .ics
             </button>
             <button
@@ -635,6 +641,7 @@ export default function App() {
         <PasscodeGate
           status={sync.state}
           message={sync.message}
+          localCount={events.length ? bookings.length : 0}
           onConnect={connect}
           onSkip={useDeviceOnly}
           onClose={() => setShowGate(false)}

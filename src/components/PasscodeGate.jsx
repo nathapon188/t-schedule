@@ -4,7 +4,7 @@ import { useState } from 'react'
  * The shared calendar holds guest names and contact details, so a passcode sits
  * in front of it. Entered once per device and kept in this browser.
  */
-export default function PasscodeGate({ status, message, onConnect, onSkip, onClose, canClose }) {
+export default function PasscodeGate({ status, message, localCount = 0, onConnect, onSkip, onClose, canClose }) {
   const [value, setValue] = useState('')
   const busy = status === 'connecting'
 
@@ -19,7 +19,9 @@ export default function PasscodeGate({ status, message, onConnect, onSkip, onClo
       >
         <h2>Shared calendar</h2>
         <p className="muted">
-          Enter the team passcode to load the bookings everyone shares. This device will remember it.
+          {localCount
+            ? `Enter the team passcode to join the shared calendar. The ${localCount} booking${localCount === 1 ? '' : 's'} saved on this device will be uploaded, so every phone and PC sees them.`
+            : 'Enter the team passcode to load the bookings everyone shares. This device will remember it.'}
         </p>
 
         <input
@@ -48,7 +50,7 @@ export default function PasscodeGate({ status, message, onConnect, onSkip, onClo
             {busy ? 'Connecting…' : 'Connect'}
           </button>
           <button type="button" className="ghost" onClick={onSkip}>
-            This device only
+            {localCount ? 'Keep on this device only' : 'This device only'}
           </button>
           {canClose && (
             <button type="button" className="ghost" onClick={onClose}>

@@ -77,12 +77,45 @@ export function buildIcs(events, bookings = [], { durationMinutes = 30 } = {}) {
   return lines.filter(Boolean).join('\r\n')
 }
 
-export function downloadIcs(events, bookings, filename = 'catering-schedule.ics') {
+/** Name it after the guest and first date, so a phone's share sheet is readable. */
+function icsName(events, bookings) {
+  const first = events.length ? [...events].map((e) => e.date).sort()[0] : 'schedule'
+  const who = bookings?.[0]?.details?.guest || 'catering'
+  return `${who.replace(/[^\w]+/g, '-').toLowerCase()}-${first}.ics`
+}
+
+export function downloadIcs(events, bookings, filename) {
   const blob = new Blob([buildIcs(events, bookings)], { type: 'text/calendar;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = filename
+  a.download = filename || icsName(events, bookings)
   a.click()
   URL.revokeObjectURL(url)
+}
+
+/**
+ * Hands the .ics to the operating system's share sheet where that exists, which
+ * is how a phone gets it into Outlook or a message. Falls back to a download.
+ * Returns 'shared', 'downloaded' or 'cancelled'.
+ */
+export async function shareIcs(events, bookings, { text } = {}) {
+  const name = icsName(events, bookings)
+  const body = buildIcs(events, bookings)
+
+  if (typeof File !== 'undefined' && navigator.canShare) {
+    const file = new File([body], name, { type: 'text/calendar' })
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Catering schedule', text })
+        return 'shared'
+      } catch (err) {
+        if (err.name === 'AbortError') return 'cancelled'
+        // Anything else: fall through to the download path.
+      }
+    }
+  }
+
+  downloadIcs(events, bookings, name)
+  return 'downloaded'
 }
