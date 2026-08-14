@@ -9,9 +9,11 @@
 //   { v: 2, bookings: [{ id, details, rawText }], events: [{ ..., bookingId }] }
 // v1 held a single booking; loadLocal migrates it.
 
+import { visibleNotes } from './notes.js'
+
 export const STORE_KEY = 't-schedule/v1'
 
-const DETAIL_KEYS = ['guest', 'pax', 'phone', 'emails', 'address', 'chargeBack', 'dietary', 'requestedBy', 'notes', 'dietaryList', 'requested', 'confirmation', 'total']
+const DETAIL_KEYS = ['guest', 'pax', 'phone', 'emails', 'address', 'chargeBack', 'dietary', 'requestedBy', 'notes', 'noteList', 'dietaryList', 'requested', 'confirmation', 'total']
 
 export function emptyState() {
   return { v: 2, bookings: [], events: [] }
@@ -85,6 +87,7 @@ export function encodeState({ bookings = [], events = [] }) {
     v: 2,
     b: bookings.map((b) => {
       const d = b.details || {}
+      const notes = visibleNotes(d)
       return {
         g: d.guest || undefined,
         p: d.pax || undefined,
@@ -94,7 +97,7 @@ export function encodeState({ bookings = [], events = [] }) {
         c: d.chargeBack || undefined,
         di: d.dietary || undefined,
         rb: d.requestedBy || undefined,
-        n: d.notes || undefined,
+        nl: notes.length ? notes.map((n) => [n.text, n.at || '']) : undefined,
         dl: d.dietaryList?.length ? d.dietaryList.map((r) => [r.name || '', r.requirement || '']) : undefined,
         tot: d.total ?? undefined,
       }
@@ -113,6 +116,7 @@ export function encodeState({ bookings = [], events = [] }) {
 }
 
 function expandDetails(d = {}) {
+  const noteList = (d.nl || []).map(([text, at], i) => ({ id: `note${i}`, text: text || '', at: at || '' }))
   return {
     guest: d.g || '',
     pax: d.p || '',
@@ -122,7 +126,8 @@ function expandDetails(d = {}) {
     chargeBack: d.c || '',
     dietary: d.di || '',
     requestedBy: d.rb || '',
-    notes: d.n || '',
+    notes: noteList.length ? '' : d.n || '', // 'n' is the single note older links carry
+    noteList,
     dietaryList: (d.dl || []).map(([name, requirement]) => ({ name: name || '', requirement: requirement || '' })),
     requested: '',
     confirmation: '',

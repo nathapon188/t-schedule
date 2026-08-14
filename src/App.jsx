@@ -13,11 +13,12 @@ import { readImage } from './lib/ocr.js'
 import { downloadIcs, shareIcs } from './lib/ics.js'
 import { buildBooking } from './lib/bookings.js'
 import { parseDietary, mergeDietary, looksLikeDietaryList } from './lib/dietary.js'
+import { addNote, concatNotes, setNotes } from './lib/notes.js'
 import { MONTHS, fromKey, toKey, startOfMonth, startOfWeek, addDays, addMonths, formatLong, formatTime } from './lib/dates.js'
 import { loadLocal, saveLocal, clearLocal, stateFromHash, shareLink, downloadJson, readJsonFile } from './lib/storage.js'
 import { loadPasscode, savePasscode, pullRemote, syncUp, mergeStates, fingerprint } from './lib/sync.js'
 
-const EMPTY_DETAILS = { guest: '', pax: '', phone: '', emails: [], address: '', chargeBack: '', dietary: '', requestedBy: '', notes: '', dietaryList: [], requested: '', confirmation: '', total: null }
+const EMPTY_DETAILS = { guest: '', pax: '', phone: '', emails: [], address: '', chargeBack: '', dietary: '', requestedBy: '', notes: '', noteList: [], dietaryList: [], requested: '', confirmation: '', total: null }
 
 const MOBILE_WIDTH = 900
 const VIEWS = ['Day', 'Week', 'Month', 'Year']
@@ -238,6 +239,25 @@ export default function App() {
     setDeleted((list) => [...list, id])
   }
 
+  /** A note written now, attached to whichever booking was chosen for it. */
+  const addBookingNote = (bookingId, text) => {
+    const target = bookings.find((b) => b.id === bookingId) || activeBooking
+    if (!target) return
+    const before = target.details
+    const after = addNote(before, text)
+    if (after === before) return
+    patchBooking(target.id, { details: after })
+    flash(`Note added to ${target.details.guest || 'this booking'}.`, {
+      label: 'Undo',
+      run: () => patchBooking(target.id, { details: before }),
+    })
+  }
+
+  const setBookingNotes = (bookingId, list) => {
+    const target = bookings.find((b) => b.id === bookingId)
+    if (target) patchBooking(target.id, { details: setNotes(target.details, list) })
+  }
+
   /** Guest list text folded into a booking's dietary rows, no new booking made. */
   const attachDietary = useCallback(
     (text, bookingId) => {
@@ -277,13 +297,15 @@ export default function App() {
     for (const key of ['pax', 'phone', 'address', 'chargeBack', 'requestedBy', 'dietary', 'guest']) {
       if (!target.details[key] && source.details[key]) filled[key] = source.details[key]
     }
-    const details = {
-      ...target.details,
-      ...filled,
-      dietaryList: rows,
-      notes: [target.details.notes, source.details.notes].filter(Boolean).join('\n'),
-      emails: [...new Set([...(target.details.emails || []), ...(source.details.emails || [])])],
-    }
+    const details = setNotes(
+      {
+        ...target.details,
+        ...filled,
+        dietaryList: rows,
+        emails: [...new Set([...(target.details.emails || []), ...(source.details.emails || [])])],
+      },
+      concatNotes(target.details, source.details),
+    )
 
     setBookings((list) => list.filter((b) => b.id !== sourceId).map((b) => (b.id === targetId ? { ...b, details } : b)))
     setEvents((list) =>
@@ -688,6 +710,8 @@ export default function App() {
               onMergeBooking={mergeBookingInto}
               details={details}
               onDetails={setDetails}
+              onAddNote={addBookingNote}
+              onNotes={setBookingNotes}
               events={events}
               onEvents={setEvents}
               onRemoveEvent={removeEvent}

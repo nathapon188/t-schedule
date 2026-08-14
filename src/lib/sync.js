@@ -1,6 +1,8 @@
 // Client half of the shared store. Talks to /api/schedule, and merges rather
 // than clobbers when two devices save at once.
 
+import { mergeNotes } from './notes.js'
+
 const API = '/api/schedule'
 export const KEY_STORE = 't-schedule/key'
 
@@ -35,11 +37,20 @@ export function mergeStates(local, remote, { preferLocal = true } = {}) {
   const second = preferLocal ? remote : local
 
   const bookings = []
-  const seenBooking = new Set()
+  const byId = new Map()
   for (const booking of [...(first.bookings || []), ...(second.bookings || [])]) {
-    if (deleted.has(booking.id) || seenBooking.has(booking.id)) continue
-    seenBooking.add(booking.id)
-    bookings.push(booking)
+    if (deleted.has(booking.id)) continue
+    const held = byId.get(booking.id)
+    if (held) {
+      // The winner keeps its fields, but notes are written as the day goes on and
+      // often on two devices at once, so they are unioned rather than dropped.
+      const details = mergeNotes(held.details || {}, booking.details || {})
+      if (details !== held.details) Object.assign(held, { details })
+      continue
+    }
+    const copy = { ...booking }
+    byId.set(booking.id, copy)
+    bookings.push(copy)
   }
 
   const bookingIds = new Set(bookings.map((b) => b.id))

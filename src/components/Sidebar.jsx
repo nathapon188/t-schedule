@@ -1,6 +1,7 @@
 import MiniMonth from './MiniMonth.jsx'
 import { colourFor } from '../lib/colours.js'
 import { bookingLabel } from '../lib/bookings.js'
+import { noteCount } from '../lib/notes.js'
 import { formatLong, formatShort, formatTime, toKey, addDays, fromKey, startOfMonth } from '../lib/dates.js'
 
 function agendaHeading(key) {
@@ -126,6 +127,11 @@ export default function Sidebar({
                     {!!booking.details?.dietaryList?.length && (
                       <span className="rail-source">
                         {booking.details.dietaryList.filter((r) => r.requirement).length} dietary
+                      </span>
+                    )}
+                    {!!noteCount(booking.details) && (
+                      <span className="rail-source">
+                        {noteCount(booking.details)} note{noteCount(booking.details) === 1 ? '' : 's'}
                       </span>
                     )}
                   </span>

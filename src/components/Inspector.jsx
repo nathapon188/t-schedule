@@ -29,6 +29,8 @@ export default function Inspector({
   onMergeBooking,
   details,
   onDetails,
+  onAddNote,
+  onNotes,
   events,
   onEvents,
   onRemoveEvent,
@@ -207,6 +209,8 @@ export default function Inspector({
           onRemoveEvent={onRemoveEvent}
           bookings={bookings}
           activeBooking={activeBooking}
+          onAddNote={onAddNote}
+          onNotes={onNotes}
           selected={selected}
           onSelect={onSelect}
         />

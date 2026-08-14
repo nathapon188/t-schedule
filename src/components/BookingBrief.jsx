@@ -1,4 +1,6 @@
 import { dietarySummary } from '../lib/dietary.js'
+import { visibleNotes } from '../lib/notes.js'
+import { formatStamp } from '../lib/dates.js'
 
 /**
  * Notes and the dietary list for the bookings on one day: the bit the kitchen
@@ -7,7 +9,7 @@ import { dietarySummary } from '../lib/dietary.js'
 export default function BookingBrief({ bookings, events, date }) {
   const ids = new Set(events.filter((e) => e.date === date).map((e) => e.bookingId))
   const relevant = bookings.filter(
-    (b) => ids.has(b.id) && (b.details?.notes || b.details?.dietaryList?.length || b.details?.dietary),
+    (b) => ids.has(b.id) && (visibleNotes(b.details).length || b.details?.dietaryList?.length || b.details?.dietary),
   )
   if (!relevant.length) return null
 
@@ -16,6 +18,7 @@ export default function BookingBrief({ bookings, events, date }) {
       {relevant.map((booking) => {
         const d = booking.details || {}
         const rows = d.dietaryList || []
+        const notes = visibleNotes(d)
         return (
           <section className="brief-card" key={booking.id}>
             <header>
@@ -24,7 +27,16 @@ export default function BookingBrief({ bookings, events, date }) {
               {d.pax && <span className="muted">{d.pax}</span>}
             </header>
 
-            {d.notes && <p className="brief-notes">{d.notes}</p>}
+            {!!notes.length && (
+              <ul className="brief-notes">
+                {notes.map((note) => (
+                  <li key={note.id}>
+                    {formatStamp(note.at) && <span className="muted">{formatStamp(note.at)}</span>}
+                    <span>{note.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             {!!rows.length && (
               <>

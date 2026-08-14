@@ -4,6 +4,7 @@ import { parseForm } from '../src/lib/parse.js'
 import { buildBooking, signature } from '../src/lib/bookings.js'
 import { encodeState, decodeState } from '../src/lib/storage.js'
 import { buildIcs } from '../src/lib/ics.js'
+import { addNote, noteList } from '../src/lib/notes.js'
 import { SAMPLE_TWO_DAYS, SAMPLE_RANGE } from '../src/samples.js'
 
 // storage.js and ics.js run in the browser; give them the globals they use.
@@ -87,7 +88,7 @@ bookings[0].details.dietaryList = [
 ]
 const withNotes = decodeState(encodeState({ bookings, events }))
 check('notes survive the link', () =>
-  assert.equal(withNotes.bookings[0].details.notes, 'Sit down lunch, set up from 11:30. Call Jaz on arrival.'))
+  assert.equal(noteList(withNotes.bookings[0].details)[0].text, 'Sit down lunch, set up from 11:30. Call Jaz on arrival.'))
 check('dietary rows survive the link', () =>
   assert.deepEqual(withNotes.bookings[0].details.dietaryList, bookings[0].details.dietaryList))
 check('a guest with no requirement is kept', () =>
@@ -104,6 +105,13 @@ check('each event carries its own guest', () => {
 })
 check('pax follows the right booking', () => assert.ok(ics.includes('Pax: 12 pax') && ics.includes('Pax: 7-8 pax')))
 check('notes reach the calendar entry', () => assert.ok(ics.includes('Sit down lunch')))
+check('a note added later reaches it too, with the time it was written', () => {
+  bookings[0].details = addNote(bookings[0].details, 'Ward rang, moved to 11:00.', '2026-08-14T15:40:00.000Z')
+  const withLater = buildIcs(events, bookings)
+  assert.ok(withLater.includes('Ward rang'))
+  assert.ok(withLater.includes('Sit down lunch'))
+  assert.ok(/1[45]\/08\/2026/.test(withLater))
+})
 check('dietary names reach the calendar entry', () => assert.ok(ics.includes('Brett') && ics.includes('Kim Teale')))
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed')

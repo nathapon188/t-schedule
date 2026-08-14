@@ -2,6 +2,7 @@
 // file lands on the right clock time regardless of the importing calendar's zone.
 
 import { fromKey } from './dates.js'
+import { notesText } from './notes.js'
 
 function escapeText(value = '') {
   return String(value).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
@@ -46,6 +47,7 @@ export function buildIcs(events, bookings = [], { durationMinutes = 30 } = {}) {
 
     const summaryParts = [event.title]
     if (details.guest) summaryParts.push(details.guest)
+    const notes = notesText(details)
     const description = [
       event.detail,
       details.requestedBy && `Requested by: ${details.requestedBy}`,
@@ -54,7 +56,7 @@ export function buildIcs(events, bookings = [], { durationMinutes = 30 } = {}) {
       details.emails?.length && `Email: ${details.emails.join(', ')}`,
       details.chargeBack && `Charge back: ${details.chargeBack}`,
       event.amount != null && `Amount: $${event.amount.toFixed(2)}`,
-      details.notes && `Notes: ${details.notes}`,
+      notes && `Notes:\n${notes}`,
       details.dietaryList?.length &&
         `Dietary:\n${details.dietaryList
           .map((r) => `  ${r.name}${r.requirement ? ` — ${r.requirement}` : ''}`)

@@ -105,6 +105,15 @@ export function formatTime(hhmm) {
   return `${hour12}:${String(m).padStart(2, '0')}${suffix}`
 }
 
+/** ISO timestamp -> '14/08/2026 3:40pm'. Blank or unreadable stays blank. */
+export function formatStamp(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const day = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+  return `${day} ${formatTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)}`
+}
+
 /** Days between two keys, inclusive, capped so a bad OCR read cannot explode the list. */
 export function expandRange(startKey, endKey, cap = 60) {
   const out = []

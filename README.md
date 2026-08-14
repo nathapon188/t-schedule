@@ -27,7 +27,8 @@ load. Edits sync both ways.
   device's changes show up rather than being overwritten by a stale snapshot.
   Only a device holding unsaved edits keeps its own version of a clashing
   booking, which it then pushes up. If two people edit the same booking at the
-  same moment, the one who saves last wins that booking.
+  same moment, the one who saves last wins that booking. Notes are the exception:
+  they are unioned per note, so notes added on two devices at once both survive.
 - Every device also keeps its own local copy, so the calendar still opens when
   the connection or the function is unavailable. "This device only" opts out of
   sharing entirely.
@@ -83,8 +84,27 @@ The "REQUESTED" and "CONFIRMATION" rows are ignored, so an internal note like
 
 ## Notes and per-guest dietary
 
-Each booking has a free-text **Notes** box for anything staff need on the day,
-and a **Guests and dietary** list of name plus requirement rows.
+Each booking has a **Notes** list for anything staff need on the day, and a
+**Guests and dietary** list of name plus requirement rows.
+
+Most notes are written after the form arrives ("ward rang, moved to 11:30"), so
+notes are a list rather than one box. Type into the Notes panel and press **Add
+note**, or Ctrl+Enter. Each note records the time it was written, and every note
+stays editable and removable afterwards.
+
+**Attach to** at the top of the panel picks which booking the note belongs to, so
+a note can be written down the moment it is heard without leaving the booking
+being edited. It follows the booking you are editing until you choose another,
+and adding a note shows an Undo.
+
+A note read off the form itself is listed first, marked "Read off the form" and
+with no time against it. The older single-note field (`details.notes`) is still
+read from old saves and links, and is folded into the list the first time
+anything is written (`src/lib/notes.js`).
+
+Because notes are often added on two devices at once, the shared-store merge
+unions them by id instead of letting one device's list win, so nothing written on
+a phone is lost when the desktop saves.
 
 Paste the list straight off a function sheet and it is split into rows. The
 parser (`src/lib/dietary.js`) takes the leading capitalised words as the name and
@@ -113,7 +133,7 @@ you pick, and the empty one is removed.
 
 Notes and dietary rows appear on the day's run sheet in Day view and on mobile,
 where the kitchen will actually read them, and both land in the .ics description
-and the share link. The rail shows a dietary count per booking.
+and the share link. The rail shows a dietary and a note count per booking.
 
 ## Requested by
 
@@ -157,6 +177,7 @@ node scripts/test-parse.mjs                 # date, time and form parsing
 node scripts/test-bookings.mjs              # merging forms, dedupe, link and ics
 node scripts/test-sync.mjs                  # shared store merge and tombstones
 node scripts/test-dietary.mjs               # guest list parsing, wrapped lines
+node scripts/test-notes.mjs                 # booking notes, merge, link round trip
 node scripts/test-ocr.mjs path\to\form.png  # full OCR pass on a real image
 ```
 
@@ -168,6 +189,7 @@ internet once.
 - `src/lib/parse.js` — form text to dates, orders and details
 - `src/lib/dates.js` — date maths and AU formatting (Monday-first weeks)
 - `src/lib/ocr.js` — Tesseract worker, upscales small images first
+- `src/lib/notes.js` — booking notes: list, merge, flatten for export
 - `src/lib/storage.js` — localStorage, JSON file, URL link encoding
 - `src/lib/sync.js` — shared store client, merge and conflict retry
 - `netlify/functions/schedule.mjs` — the shared store itself
