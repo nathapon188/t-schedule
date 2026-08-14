@@ -60,6 +60,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState(() => (window.innerWidth <= MOBILE_WIDTH ? 'mobile' : 'desktop'))
   const [wideScreen, setWideScreen] = useState(() => window.innerWidth > MOBILE_WIDTH)
   const [inspectorOpen, setInspectorOpen] = useState(!initial.events.length)
+  const [focusEvent, setFocusEvent] = useState(null) // order opened from the calendar
   const [linkBase, setLinkBase] = useState(() => window.location.origin + window.location.pathname)
   const [qr, setQr] = useState(null)
   const [sourceFilter, setSourceFilter] = useState('')
@@ -218,6 +219,17 @@ export default function App() {
   const goTo = (key) => {
     setSelected(key)
     setAnchor(fromKey(key))
+  }
+
+  /**
+   * Clicking an order anywhere on the calendar opens it for editing: its booking
+   * becomes the one being edited, the panel opens, and the row is scrolled to.
+   */
+  const openEvent = (event) => {
+    goTo(event.date)
+    setActiveId(event.bookingId)
+    setFocusEvent(event.id)
+    if (!isMobile) setInspectorOpen(true)
   }
 
   const patchBooking = (id, patch) => setBookings((list) => list.map((b) => (b.id === id ? { ...b, ...patch } : b)))
@@ -624,10 +636,26 @@ export default function App() {
         <div className="canvas">
           <div className="stage">
             {view === 'Month' && (
-              <MonthView month={month} events={visibleEvents} selected={selected} onSelect={goTo} compact={isMobile} />
+              <MonthView
+                month={month}
+                events={visibleEvents}
+                selected={selected}
+                onSelect={goTo}
+                onOpenEvent={openEvent}
+                compact={isMobile}
+              />
             )}
-            {view === 'Week' && <WeekView anchor={anchor} events={visibleEvents} selected={selected} onSelect={goTo} />}
-            {view === 'Day' && <DayView anchor={selected || toKey(anchor)} events={visibleEvents} bookings={bookings} />}
+            {view === 'Week' && (
+              <WeekView anchor={anchor} events={visibleEvents} selected={selected} onSelect={goTo} onOpenEvent={openEvent} />
+            )}
+            {view === 'Day' && (
+              <DayView
+                anchor={selected || toKey(anchor)}
+                events={visibleEvents}
+                bookings={bookings}
+                onOpenEvent={openEvent}
+              />
+            )}
             {view === 'Year' && (
               <YearView
                 anchor={anchor}
@@ -715,6 +743,7 @@ export default function App() {
               events={events}
               onEvents={setEvents}
               onRemoveEvent={removeEvent}
+              focusEvent={focusEvent}
               selected={selected}
               onSelect={goTo}
               link={link}

@@ -60,7 +60,11 @@ Vite prints a Local and a Network address. Use the Network one on a phone.
    and line items, and the contact fields. Orders written as "each day" repeat
    across every booked date, which is why a two-day booking highlights two days.
 3. **Check and correct** in the right-hand panel. Every field is editable, and
-   "Form text" lets you fix an OCR misread and Re-parse.
+   "Form text" lets you fix an OCR misread and Re-parse. Clicking an order on the
+   calendar (a pill in Month, a block in Week, a slot in Day) opens that order in
+   the panel: its booking becomes the one being edited, the panel opens if it was
+   hidden, and the row is scrolled to and outlined. Clicking the day around the
+   orders still just selects the day.
 4. **Use it**: Day / Week / Month / Year views, .ics export for Outlook, print,
    or a link/QR for a phone.
 

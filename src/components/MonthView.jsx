@@ -1,8 +1,13 @@
 import { MONTHS, WEEKDAYS_SHORT, monthGrid, toKey } from '../lib/dates.js'
 import { colourFor } from '../lib/colours.js'
 
-/** Big month grid: booked days are tinted and every order shows as a pill. */
-export default function MonthView({ month, events, selected, onSelect, compact = false }) {
+/**
+ * Big month grid: booked days are tinted and every order shows as a pill.
+ * The day opens itself, a pill opens the order it belongs to in the edit panel,
+ * which is why the cell is a div with a button role rather than a button: a
+ * button cannot hold other buttons.
+ */
+export default function MonthView({ month, events, selected, onSelect, onOpenEvent, compact = false }) {
   const days = monthGrid(month)
   const today = toKey(new Date())
   const limit = compact ? 2 : 4
@@ -36,27 +41,45 @@ export default function MonthView({ month, events, selected, onSelect, compact =
             .join(' ')
 
           return (
-            <button type="button" key={key} className={classes} onClick={() => onSelect(key)}>
+            <div
+              key={key}
+              className={classes}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelect(key)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onSelect(key)
+                }
+              }}
+            >
               <span className="cell-date">
                 {day.getDate() === 1 && !compact ? `${MONTHS[day.getMonth()].slice(0, 3)} 1` : day.getDate()}
               </span>
               <span className="cell-events">
                 {dayEvents.slice(0, limit).map((event) => (
-                  <span
+                  <button
+                    type="button"
                     key={event.id}
                     className={`pill ${event.colour || colourFor(event.title)}`}
-                    title={event.detail || event.title}
+                    title={`${event.detail || event.title}\nClick to edit this order`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (onOpenEvent) onOpenEvent(event)
+                      else onSelect(key)
+                    }}
                   >
                     <span className="pill-dot" />
                     <span className="pill-text">
                       {event.time ? `${event.time} ` : ''}
                       {event.title}
                     </span>
-                  </span>
+                  </button>
                 ))}
                 {dayEvents.length > limit && <span className="pill-more">{dayEvents.length - limit} more</span>}
               </span>
-            </button>
+            </div>
           )
         })}
       </div>

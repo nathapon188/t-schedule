@@ -3,7 +3,7 @@ import { colourFor } from '../lib/colours.js'
 import BookingBrief from './BookingBrief.jsx'
 
 /** Hour rail for one day, so a pick-up run can be read at a glance. */
-export default function DayView({ anchor, events, bookings = [] }) {
+export default function DayView({ anchor, events, bookings = [], onOpenEvent }) {
   const key = typeof anchor === 'string' ? anchor : toKey(anchor)
   const items = events.filter((e) => e.date === key).sort((a, b) => (a.time || '').localeCompare(b.time || ''))
   const hours = items.length
@@ -29,13 +29,19 @@ export default function DayView({ anchor, events, bookings = [] }) {
               {items
                 .filter((e) => +(e.time || '').slice(0, 2) === hour)
                 .map((event) => (
-                  <div key={event.id} className={`slot ${event.colour || colourFor(event.title)}`}>
+                  <button
+                    type="button"
+                    key={event.id}
+                    className={`slot ${event.colour || colourFor(event.title)}`}
+                    title="Click to edit this order"
+                    onClick={() => onOpenEvent?.(event)}
+                  >
                     <strong>
                       {formatTime(event.time)} {event.title}
                     </strong>
                     {event.detail && <p>{event.detail}</p>}
                     {event.amount != null && <p className="slot-amount">${Number(event.amount).toFixed(2)}</p>}
-                  </div>
+                  </button>
                 ))}
             </div>
           </div>

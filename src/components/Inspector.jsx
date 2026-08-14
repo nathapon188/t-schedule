@@ -34,6 +34,7 @@ export default function Inspector({
   events,
   onEvents,
   onRemoveEvent,
+  focusEvent,
   selected,
   onSelect,
   sync,
@@ -207,6 +208,7 @@ export default function Inspector({
           events={events}
           onEvents={onEvents}
           onRemoveEvent={onRemoveEvent}
+          focusEvent={focusEvent}
           bookings={bookings}
           activeBooking={activeBooking}
           onAddNote={onAddNote}

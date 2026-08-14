@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { formatLong, formatTime } from '../lib/dates.js'
 import { colourFor } from '../lib/colours.js'
 import { REQUEST_SOURCES } from '../lib/sources.js'
@@ -23,6 +24,7 @@ export default function ScheduleEditor({
   events,
   onEvents,
   onRemoveEvent,
+  focusEvent,
   bookings,
   activeBooking,
   onAddNote,
@@ -30,6 +32,14 @@ export default function ScheduleEditor({
   selected,
   onSelect,
 }) {
+  const focusRow = useRef(null)
+
+  // An order clicked on the calendar can be well down a long list, so bring it
+  // into view rather than leaving the panel wherever it was scrolled to.
+  useEffect(() => {
+    focusRow.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focusEvent])
+
   const sorted = [...events].sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))
   const grouped = sorted.reduce((acc, event) => {
     ;(acc[event.date] ||= []).push(event)
@@ -77,7 +87,13 @@ export default function ScheduleEditor({
             </button>
 
             {dayEvents.map((event) => (
-              <div className={`event-row ${event.bookingId === activeBooking?.id ? 'is-active' : ''}`} key={event.id}>
+              <div
+                className={`event-row ${event.bookingId === activeBooking?.id ? 'is-active' : ''} ${
+                  event.id === focusEvent ? 'is-focus' : ''
+                }`}
+                key={event.id}
+                ref={event.id === focusEvent ? focusRow : null}
+              >
                 <span className={`bullet ${colourOf(event)}`} title={guestOf(event)} />
                 <input
                   className="cell time"

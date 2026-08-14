@@ -1,7 +1,9 @@
 import { weekDays, toKey, WEEKDAYS_SHORT, formatTime } from '../lib/dates.js'
 import { colourFor } from '../lib/colours.js'
 
-export default function WeekView({ anchor, events, selected, onSelect }) {
+/** A day opens itself, an order opens in the edit panel. See MonthView on why
+ *  the column is a div with a button role. */
+export default function WeekView({ anchor, events, selected, onSelect, onOpenEvent }) {
   const days = weekDays(anchor)
   const today = toKey(new Date())
 
@@ -14,20 +16,42 @@ export default function WeekView({ anchor, events, selected, onSelect }) {
           .filter(Boolean)
           .join(' ')
         return (
-          <button type="button" key={key} className={classes} onClick={() => onSelect(key)}>
+          <div
+            key={key}
+            className={classes}
+            role="button"
+            tabIndex={0}
+            onClick={() => onSelect(key)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onSelect(key)
+              }
+            }}
+          >
             <span className="week-head">
               <span className="week-day">{WEEKDAYS_SHORT[(day.getDay() + 6) % 7].toUpperCase()}</span>
               <span className="week-date">{day.getDate()}</span>
             </span>
             <span className="week-body">
               {items.map((event) => (
-                <span key={event.id} className={`block ${event.colour || colourFor(event.title)}`}>
+                <button
+                  type="button"
+                  key={event.id}
+                  className={`block ${event.colour || colourFor(event.title)}`}
+                  title={`${event.detail || event.title}\nClick to edit this order`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (onOpenEvent) onOpenEvent(event)
+                    else onSelect(key)
+                  }}
+                >
                   <strong>{formatTime(event.time) || 'TBC'}</strong>
                   {event.title}
-                </span>
+                </button>
               ))}
             </span>
-          </button>
+          </div>
         )
       })}
     </div>
