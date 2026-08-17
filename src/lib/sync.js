@@ -70,10 +70,12 @@ export function mergeStates(local, remote, { preferLocal = true } = {}) {
 /** Same data, ignoring key order, so a pull does not trigger a pointless push. */
 export function fingerprint(state) {
   const bookings = [...(state.bookings || [])]
-    .map((b) => `${b.id}:${JSON.stringify(b.details || {})}:${b.colour || ''}:${(b.rawText || '').length}`)
+    .map((b) => `${b.id}:${JSON.stringify(b.details || {})}:${b.colour || ''}:${JSON.stringify(b.rawText || '')}`)
     .sort()
+  // Detail and form text are edited by hand, so compare the whole string: a typo
+  // fix that keeps the length the same is still a change other devices need.
   const events = [...(state.events || [])]
-    .map((e) => `${e.id}:${e.bookingId}:${e.date}:${e.time}:${e.title}:${e.amount ?? ''}:${(e.detail || '').length}`)
+    .map((e) => `${e.id}:${e.bookingId}:${e.date}:${e.time}:${e.title}:${e.amount ?? ''}:${JSON.stringify(e.detail || '')}`)
     .sort()
   return JSON.stringify([bookings, events, [...(state.deleted || [])].sort()])
 }

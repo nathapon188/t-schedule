@@ -665,7 +665,10 @@ button.link {
   padding: 3px;
   margin: -3px -3px 2px;
 }
-.event-detail { grid-column: 1 / -1; margin: 0 0 3px; font-size: 11.5px; color: var(--muted); white-space: pre-line; }
+.event-detail { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 2px; margin: 1px 0 3px; }
+.event-detail > span { font-size: 11.5px; color: var(--muted); }
+.event-detail textarea { width: 100%; font-size: 11.5px; line-height: 1.45; color: var(--muted); resize: vertical; }
+.event-detail textarea:focus { color: var(--ink); }
 
 input, textarea {
   font: inherit;

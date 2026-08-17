@@ -118,13 +118,18 @@ export default function ScheduleEditor({
                 <button type="button" className="icon danger" onClick={() => remove(event.id)} aria-label="Remove order">
                   &times;
                 </button>
-                {event.detail && (
-                  <p className="event-detail">
+                <label className="event-detail">
+                  <span>
                     {guestOf(event) && bookings.length > 1 && <strong>{guestOf(event)} · </strong>}
-                    {event.time && <strong>{formatTime(event.time)} — </strong>}
-                    {event.detail}
-                  </p>
-                )}
+                    {event.time && <strong>{formatTime(event.time)}</strong>}
+                  </span>
+                  <textarea
+                    rows={Math.min(10, Math.max(2, (event.detail || '').split('\n').length))}
+                    value={event.detail || ''}
+                    placeholder="What the order is: items, quantities, anything the kitchen needs"
+                    onChange={(e) => update(event.id, { detail: e.target.value })}
+                  />
+                </label>
               </div>
             ))}
           </div>

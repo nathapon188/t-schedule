@@ -114,6 +114,17 @@ check('an amount change is noticed', () => {
   assert.notEqual(fingerprint(a), fingerprint(b))
 })
 
+check('an edit to the order text of the same length is noticed', () => {
+  const a = { bookings: [], events: [{ ...event('e1', 'b1', '2026-08-21'), detail: '12 x ham roll' }], deleted: [] }
+  const b = { bookings: [], events: [{ ...event('e1', 'b1', '2026-08-21'), detail: '13 x ham roll' }], deleted: [] }
+  assert.notEqual(fingerprint(a), fingerprint(b))
+})
+check('an edit to the form text of the same length is noticed', () => {
+  const a = { bookings: [{ ...booking('b1', 'A'), rawText: 'PAX 12' }], events: [], deleted: [] }
+  const b = { bookings: [{ ...booking('b1', 'A'), rawText: 'PAX 13' }], events: [], deleted: [] }
+  assert.notEqual(fingerprint(a), fingerprint(b))
+})
+
 console.log('tombstone list stays bounded')
 const many = mergeStates(
   { bookings: [], events: [], deleted: Array.from({ length: 400 }, (_, i) => `l${i}`) },
