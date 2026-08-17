@@ -40,3 +40,21 @@ export const SAMPLE_OCR_ARTEFACTS = SAMPLE_TWO_DAYS.replace(
   'Friday 21st & Saturday 22nd August 2026',
   'Thursday 13" & Friday 14" August 2026',
 )
+
+// A single order read straight off a photo of the table, warts and all: the
+// Date and Phone rows dropped, the left-hand instructions column threaded
+// through the order lines, and "at 10:20am" read as "®t 10:208m".
+export const SAMPLE_OCR_COLUMNS = `CATERING FORM
+Name of Guest/s Alba & Sorenson
+NUMBER OF PAX 7 pax +2 children
+bookings@example.com
+Billing Address 1 SAMPLE ST BRISBANE Q 4000
+Charge Back Authority Sample Suites
+ref: #AlbaSorenson
+Catering Morning Tea: Collected from Café on Friday 18" September 2026
+Please ensure these are ready by the times | ®t 10:208m
+allocated as there is no wiggle room for | 9 x Fruit cups ($2.50) = $22.50
+7x Lychee Mocktails ($7) = $49
+-
+fate catering 2x Apple juice ($6.5) = $13
+Total = $84.50`

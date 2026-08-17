@@ -14,8 +14,15 @@ const ORDINAL_RE = /(\d{1,2})\s*(?:st|nd|rd|th)\b/gi
 const ORDINAL_ARTEFACT_RE = /(\d{1,2})\s*(?:["'‘’“”´`*°º˚]+|\b(?:t[hn]|s[t1]|rd|nd|ni|in)\b)/gi
 const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]{2,}/g
 const MONEY_RE = /\$\s?([\d,]+(?:\.\d{1,2})?)/g
+// The per-item total on a priced line: "9 x Fruit cups ($2.50) = $22.50".
+const LINE_TOTAL_RE = /=\s*\$\s?([\d,]+(?:\.\d{1,2})?)/g
 const TIME_RE = /\b(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)\b|\b(\d{1,2}):(\d{2})\b/i
 const EACH_DAY_RE = /\b(each|every|per)\s+day\b|\bdaily\b|\bboth\s+days\b/i
+// The meal a block of items belongs to. On the printed form this names the
+// order and the pick-up time can land on the line below it.
+const MEAL_RE = /\b(breakfast|brunch|morning\s*tea|lunch|afternoon\s*tea|dinner|supper|canap[eé]s?|platters?|grazing|beverages?|snacks?)\b/i
+// A priced line is an item, never a heading, even when it names a meal.
+const ITEM_RE = /^\s*\d+\s*x\b|=\s*\$/i
 
 const DIETARY_BOILERPLATE = [
   /please separate/i,
@@ -215,8 +222,18 @@ export function extractDates(text, defaultYear = new Date().getFullYear()) {
 
 /* ------------------------------------------------------------------ times */
 
+/**
+ * OCR's usual am/pm mistakes: the 'a' of "am" comes back as a digit or a
+ * symbol ("10:20am" -> "10:208m"), and 'm' comes back as 'rn' ("3pm" -> "3prn").
+ */
+function fixMeridiem(text) {
+  return text
+    .replace(/(\d[:.]\d{2})\s*[890@®o]\s*m\b/gi, '$1am')
+    .replace(/(\d)\s*([ap])\s*rn\b/gi, '$1$2m')
+}
+
 export function extractTime(text) {
-  const m = text.match(TIME_RE)
+  const m = fixMeridiem(text).match(TIME_RE)
   if (!m) return ''
   if (m[3]) {
     let h = +m[1] % 12
@@ -231,7 +248,9 @@ export function extractTime(text) {
 /* ------------------------------------------------- catering line items */
 
 function deliverySection(lines) {
-  const start = lines.findIndex((l) => /catering\s*(delivery|order)/i.test(l))
+  // "Catering Delivery", "Catering Order", or the bare "Catering" row label.
+  // The page heading "CATERING FORM" is not the start of the order list.
+  const start = lines.findIndex((l) => /\bcatering\b/i.test(l) && !/\bcatering\s*form\b/i.test(l))
   const from = start === -1 ? 0 : start
   let to = lines.length
   for (let i = from + 1; i < lines.length; i++) {
@@ -242,19 +261,44 @@ function deliverySection(lines) {
   }
   const slice = lines.slice(from, to)
   if (start !== -1) {
-    slice[0] = slice[0].replace(/.*catering\s*(delivery|order)[\s:\-–]*/i, '')
+    slice[0] = slice[0].replace(/.*\bcatering\b\s*(?:delivery|order)?[\s:\-–]*/i, '')
   }
   return slice
 }
 
-function sumMoney(text) {
-  const amounts = [...text.matchAll(MONEY_RE)].map((m) => Number(m[1].replace(/,/g, '')))
-  return amounts.length ? amounts : []
+// The form's standing instructions sit in the left column of the table, so OCR
+// threads them through the order lines: "…ready by the times | at 10:20am".
+const COLUMN_NOTE_RE =
+  /^[^|]*\b(?:please ensure|wiggle room|allocated as there is|ready by the times)\b[^|]*\|\s*/i
+
+/** One OCR line with the neighbouring column and its artefacts taken off. */
+function tidyOrderLine(line) {
+  return fixMeridiem(line)
+    .replace(COLUMN_NOTE_RE, '')
+    .replace(/^\s*(?:late|fate)\s+catering\b\s*/i, '') // last words of the same left column
+    .replace(/^[\s|]+/, '')
+    .trim()
+}
+
+function orderTitle(line) {
+  const beforeColon = line.split(/[:\u2013-]/)[0]
+  const looksLikeTitle = /[A-Za-z]{3}/.test(beforeColon) && !TIME_RE.test(beforeColon)
+  const title = (looksLikeTitle ? beforeColon : line.replace(TIME_RE, '')).replace(/[\s:.\-]+$/, '').trim()
+  return title || 'Catering order'
+}
+
+/** Priced lines add up to the order; otherwise fall back to the last figure seen. */
+function orderAmount(detail) {
+  const lineTotals = [...detail.matchAll(LINE_TOTAL_RE)].map((m) => Number(m[1].replace(/,/g, '')))
+  if (lineTotals.length) return Math.round(lineTotals.reduce((a, b) => a + b, 0) * 100) / 100
+  const all = [...detail.matchAll(MONEY_RE)].map((m) => Number(m[1].replace(/,/g, '')))
+  return all.length ? all[all.length - 1] : null
 }
 
 /**
- * Each block starting with a line that contains a time becomes one order.
- * Following lines without a time are treated as that order's detail.
+ * A meal name, or a pick-up time, opens an order; the lines under it are its
+ * detail. The two can be a line apart, because the printed form puts its
+ * instructions in the column beside the order and OCR interleaves the two.
  */
 export function extractOrders(text) {
   const lines = deliverySection(toLines(text))
@@ -264,30 +308,33 @@ export function extractOrders(text) {
   const push = () => {
     if (!current) return
     const detail = current.detail.filter(Boolean).join('\n')
-    const amounts = sumMoney(detail)
     orders.push({
       title: current.title,
       time: current.time,
       detail,
-      amount: amounts.length ? amounts[amounts.length - 1] : null,
+      amount: orderAmount(detail),
       eachDay: EACH_DAY_RE.test(`${current.title} ${current.headline} ${detail}`),
     })
     current = null
   }
 
-  for (const line of lines) {
-    if (!line) continue
+  for (const raw of lines) {
+    const line = tidyOrderLine(raw)
+    if (!line || /^[-–—|.·]+$/.test(line)) continue
     if (/^total\b/i.test(line)) continue
+
     const time = extractTime(line)
-    if (time) {
+    const heading = MEAL_RE.test(line.slice(0, 40)) && !ITEM_RE.test(line)
+    // A time only opens an order when the one being built already has its
+    // own, so a time arriving a line late attaches instead of splitting.
+    if (heading || (time && (!current || current.time))) {
       push()
-      const beforeColon = line.split(/[:\u2013-]/)[0]
-      const looksLikeTitle = /[A-Za-z]{3}/.test(beforeColon) && !TIME_RE.test(beforeColon)
-      const title = (looksLikeTitle ? beforeColon : line.replace(TIME_RE, '')).replace(/[\s:.\-]+$/, '').trim()
-      current = { title: title || 'Catering order', time, headline: line, detail: [line] }
-    } else if (current) {
-      current.detail.push(line)
+      current = { title: orderTitle(line), time, headline: line, detail: [line] }
+      continue
     }
+    if (!current) continue
+    current.detail.push(line)
+    if (time && !current.time) current.time = time
   }
   push()
   return orders

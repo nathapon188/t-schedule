@@ -354,8 +354,10 @@ export default function App() {
       setEvents([...baseEvents, ...added])
       setActiveId(booking.id)
 
-      if (added.length) {
-        const first = added.map((e) => e.date).sort()[0]
+      // Land on the booking's own date either way: with no orders read, the day
+      // has to be selected for "+ Add" to put a manual order in the right place.
+      const first = added.length ? added.map((e) => e.date).sort()[0] : parsed.dates[0]
+      if (first) {
         setAnchor(fromKey(first))
         setSelected(first)
       }

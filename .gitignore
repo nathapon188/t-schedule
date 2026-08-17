@@ -3,6 +3,9 @@ dist/
 dist-ssr/
 *.local
 
+# Tesseract downloads its language model beside the script on first OCR run.
+*.traineddata
+
 # Never commit real bookings: saved schedules and imported forms stay local.
 *.json.bak
 schedules/

@@ -1,7 +1,13 @@
 // Quick parser checks: node scripts/test-parse.mjs
 import assert from 'node:assert/strict'
 import { parseForm, extractDates, extractTime } from '../src/lib/parse.js'
-import { SAMPLE_ONE_DAY, SAMPLE_TWO_DAYS, SAMPLE_RANGE, SAMPLE_OCR_ARTEFACTS } from '../src/samples.js'
+import {
+  SAMPLE_ONE_DAY,
+  SAMPLE_TWO_DAYS,
+  SAMPLE_RANGE,
+  SAMPLE_OCR_ARTEFACTS,
+  SAMPLE_OCR_COLUMNS,
+} from '../src/samples.js'
 
 let failures = 0
 function check(name, fn) {
@@ -61,6 +67,8 @@ check('12:50pm', () => assert.equal(extractTime('Pick up at 12:50pm each day'), 
 check('12:00am is midnight', () => assert.equal(extractTime('at 12:00am'), '00:00'))
 check('bare pm hour', () => assert.equal(extractTime('drop off at 3pm'), '15:00'))
 check('24 hour', () => assert.equal(extractTime('deliver 14:30'), '14:30'))
+check('ocr reads the a of am as an 8', () => assert.equal(extractTime('®t 10:208m'), '10:20'))
+check('ocr reads the m of pm as rn', () => assert.equal(extractTime('pick up 3prn'), '15:00'))
 
 console.log('whole form (two days)')
 const two = parseForm(SAMPLE_TWO_DAYS)
@@ -116,6 +124,22 @@ const artefacts = parseForm(SAMPLE_OCR_ARTEFACTS)
 check('quote-mark ordinals still give two days', () =>
   assert.deepEqual(artefacts.dates, ['2026-08-13', '2026-08-14']))
 check('quote-mark ordinals still give four orders', () => assert.equal(artefacts.events.length, 4))
+
+console.log('whole form (table columns interleaved by ocr)')
+const columns = parseForm(SAMPLE_OCR_COLUMNS)
+check('date read off the catering line', () => assert.deepEqual(columns.dates, ['2026-09-18']))
+check('one order', () => assert.equal(columns.orders.length, 1))
+check('pick-up time survives the mangled am', () => assert.equal(columns.orders[0].time, '10:20'))
+check('title is the meal, not the instructions column', () =>
+  assert.equal(columns.orders[0].title, 'Morning Tea'))
+check('priced lines add up to the order total', () => assert.equal(columns.orders[0].amount, 84.5))
+check('instructions column is stripped from the detail', () =>
+  assert.ok(!/wiggle room|please ensure/i.test(columns.orders[0].detail)))
+check('every item is kept', () =>
+  assert.ok(/Fruit cups/.test(columns.orders[0].detail) &&
+    /Lychee Mocktails/.test(columns.orders[0].detail) &&
+    /Apple juice/.test(columns.orders[0].detail)))
+check('one event on the calendar', () => assert.equal(columns.events.length, 1))
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed')
 process.exit(failures ? 1 : 0)
