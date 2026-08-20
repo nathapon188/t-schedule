@@ -31,6 +31,9 @@ import {
 
 const EMPTY_DETAILS = { guest: '', pax: '', phone: '', emails: [], address: '', chargeBack: '', dietary: '', requestedBy: '', notes: '', noteList: [], dietaryList: [], requested: '', confirmation: '', total: null }
 
+// Sister site for the sandwich orders. Opens in this tab, over the calendar.
+const SANDWICH_SITE = 'https://tsandwich.netlify.app'
+
 const MOBILE_WIDTH = 900
 const VIEWS = ['Day', 'Week', 'Month', 'Year']
 const POLL_MS = 20000
@@ -655,6 +658,17 @@ export default function App() {
             >
               <span className="sync-dot" />
               {SYNC_LABELS[sync.state] || sync.state}
+            </button>
+
+            <button
+              type="button"
+              className="ghost"
+              title={SANDWICH_SITE}
+              onClick={() => {
+                window.location.href = SANDWICH_SITE
+              }}
+            >
+              Sandwiches
             </button>
 
             <div className="segmented" role="group" aria-label="Calendar view">
