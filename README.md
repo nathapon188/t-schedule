@@ -23,12 +23,24 @@ load. Edits sync both ways.
 - Merging is a union by id: both devices' bookings survive, and deletions are
   recorded as tombstones so a removed booking is not resurrected by the next
   device to sync.
-- A device with no unsaved edits accepts the shared copy outright, so another
-  device's changes show up rather than being overwritten by a stale snapshot.
-  Only a device holding unsaved edits keeps its own version of a clashing
-  booking, which it then pushes up. If two people edit the same booking at the
-  same moment, the one who saves last wins that booking. Notes are the exception:
-  they are unioned per note, so notes added on two devices at once both survive.
+- Each device remembers, in localStorage, the version it last synced and a hash
+  per booking and per order (`t-schedule/sync`). A merge then works item by item:
+  whichever side changed an order since the last sync wins it, so an order this
+  device never touched is never pushed back over someone else's edit to it. That
+  memory has to survive a reload, or a device opened days later looks like one
+  full of unsaved edits and puts its stale snapshot back up, and the edit made on
+  another device appears to revert itself.
+- If two devices changed the same order since the last sync, the one holding the
+  unsaved edit keeps it and pushes it up: last save wins that order. An id
+  neither side has synced before also stays with the device that has it, so a
+  device joining with bookings the shared store has never seen keeps them. Notes
+  are unioned per note, so notes added on two devices at once both survive.
+- A device that has never recorded a sync cannot tell an unsaved edit from a
+  stale snapshot, so it defers to the shared copy for anything both sides hold.
+  Bookings only it has are still kept and pushed up, which is what lets the
+  device holding the calendar join an empty shared store.
+- A share link is taken out of the address bar once it has been opened. Left
+  there, every reload would re-apply that snapshot over the day's edits.
 - Every device also keeps its own local copy, so the calendar still opens when
   the connection or the function is unavailable. "This device only" opts out of
   sharing entirely.
@@ -169,7 +181,8 @@ calendar. Re-parse rebuilds only the booking being edited.
 - **This browser** remembers every loaded booking automatically (localStorage).
 - **Save file / Open file** writes a `.json` you can keep on a shared drive.
 - **Copy link / Phone QR** encodes the whole schedule inside the URL hash, so
-  another device opens the same schedule with no backend. Served from GitHub
+  another device opens the same schedule with no backend. Opening one takes that
+  snapshot as this browser's copy and clears the hash from the address bar. Served from GitHub
   Pages the link works anywhere; running locally it points at `localhost`, so
   swap in this PC's LAN IP using the address box before sharing it.
 - **Export .ics** hands the run sheet to Outlook or Google Calendar.

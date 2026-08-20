@@ -48,14 +48,16 @@ export default function ScheduleEditor({
   const total = events.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
   const guestOf = (event) => bookings.find((b) => b.id === event.bookingId)?.details?.guest || ''
 
-  const update = (id, patch) => onEvents(events.map((e) => (e.id === id ? { ...e, ...patch } : e)))
+  // Every write goes through the setter's own list, not the one this render was
+  // given: a sync landing between keystrokes must not be typed back over.
+  const update = (id, patch) => onEvents((list) => list.map((e) => (e.id === id ? { ...e, ...patch } : e)))
   // Goes through onRemoveEvent so the deletion is recorded and does not come
   // back from another device on the next sync.
-  const remove = (id) => (onRemoveEvent ? onRemoveEvent(id) : onEvents(events.filter((e) => e.id !== id)))
+  const remove = (id) => (onRemoveEvent ? onRemoveEvent(id) : onEvents((list) => list.filter((e) => e.id !== id)))
   const addEvent = () => {
     const date = selected || sorted[0]?.date || new Date().toISOString().slice(0, 10)
-    onEvents([
-      ...events,
+    onEvents((list) => [
+      ...list,
       {
         id: `manual-${Date.now()}`,
         bookingId: activeBooking?.id,

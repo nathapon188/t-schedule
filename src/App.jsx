@@ -16,7 +16,18 @@ import { parseDietary, mergeDietary, looksLikeDietaryList } from './lib/dietary.
 import { addNote, concatNotes, setNotes } from './lib/notes.js'
 import { MONTHS, fromKey, toKey, startOfMonth, startOfWeek, addDays, addMonths, formatLong, formatTime } from './lib/dates.js'
 import { loadLocal, saveLocal, clearLocal, stateFromHash, shareLink, downloadJson, readJsonFile } from './lib/storage.js'
-import { loadPasscode, savePasscode, pullRemote, syncUp, mergeStates, fingerprint } from './lib/sync.js'
+import {
+  loadPasscode,
+  savePasscode,
+  pullRemote,
+  syncUp,
+  mergeStates,
+  printOf,
+  itemPrints,
+  loadSyncMeta,
+  saveSyncMeta,
+  clearSyncMeta,
+} from './lib/sync.js'
 
 const EMPTY_DETAILS = { guest: '', pax: '', phone: '', emails: [], address: '', chargeBack: '', dietary: '', requestedBy: '', notes: '', noteList: [], dietaryList: [], requested: '', confirmation: '', total: null }
 
@@ -77,8 +88,13 @@ export default function App() {
   const jsonInput = useRef(null)
   const stateRef = useRef({ bookings, events, deleted })
   const passcodeRef = useRef(passcode)
-  const versionRef = useRef(0)
-  const syncedRef = useRef('')
+  // What this device last had in common with the shared copy. Read back from
+  // localStorage: a reload with no memory of the last sync looks like a device
+  // full of unsaved edits, and pushes its stale snapshot over everyone else's.
+  const metaRef = useRef(openedFromLink ? { version: 0, print: '', base: null } : loadSyncMeta()).current
+  const versionRef = useRef(metaRef.version)
+  const syncedRef = useRef(metaRef.print)
+  const baseRef = useRef(metaRef.base)
 
   stateRef.current = { bookings, events, deleted }
   passcodeRef.current = passcode
@@ -102,6 +118,14 @@ export default function App() {
     saveLocal({ bookings, events, deleted })
   }, [bookings, events, deleted])
 
+  // A share link is a one-off snapshot, so it comes out of the URL once it has
+  // been taken. Left in, every reload would re-apply it and undo the day's
+  // edits, and the guest details would sit in the address bar and history.
+  useEffect(() => {
+    if (!openedFromLink) return
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  }, [openedFromLink])
+
   const flash = (message, action = null) => setNote({ message, action })
 
   useEffect(() => {
@@ -119,6 +143,23 @@ export default function App() {
     setActiveId((current) => (next.bookings.some((b) => b.id === current) ? current : next.bookings[next.bookings.length - 1]?.id || null))
   }, [])
 
+  /**
+   * Remember where this device stands with the shared store, on disk as well as
+   * in memory. `agreed` is what the store itself now holds: that is the baseline
+   * a later merge measures both sides against. `working` is what this device is
+   * showing, which is the same thing unless a merge kept something not up there
+   * yet. Kept in localStorage because a reload with no memory of the last sync
+   * looks like a device full of unsaved edits.
+   */
+  const markSynced = useCallback((agreed, version, working = agreed) => {
+    const print = printOf(working)
+    const base = itemPrints(agreed)
+    versionRef.current = version
+    syncedRef.current = print
+    baseRef.current = base
+    saveSyncMeta({ version, print, base })
+  }, [])
+
   const savedAt = (iso) =>
     iso ? `Shared, saved ${new Date(iso).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}` : 'Shared'
 
@@ -127,16 +168,15 @@ export default function App() {
     if (!code) return
     const state = override || stateRef.current
     setSync((s) => ({ ...s, state: 'saving' }))
-    const res = await syncUp(state, versionRef.current, code)
+    const res = await syncUp(state, versionRef.current, code, baseRef.current)
     if (res.status === 'ok') {
-      versionRef.current = res.version
       if (res.merged) applyState(res.state)
-      syncedRef.current = fingerprint(res.state)
+      markSynced(res.state, res.version)
       setSync({ state: 'ready', message: savedAt(res.updatedAt) })
     } else {
       setSync({ state: res.status, message: res.message || '' })
     }
-  }, [applyState])
+  }, [applyState, markSynced])
 
   const pull = useCallback(
     async (code = passcodeRef.current, { adopt = false } = {}) => {
@@ -149,15 +189,20 @@ export default function App() {
         return res
       }
 
-      versionRef.current = res.version
       const local = stateRef.current
-      // Unsaved local edits are kept; otherwise this copy is just a stale
-      // snapshot and the shared one is newer, so it wins.
-      const localDirty = fingerprint(local) !== syncedRef.current
-      const merged = mergeStates(local, res.state, { preferLocal: localDirty })
+      // Per item: whichever side changed it since the last sync wins. Only an id
+      // with no last sync to compare against falls back to "does this device
+      // have unsaved edits at all". A device that has never recorded a sync
+      // cannot tell an unsaved edit from a stale snapshot, so it defers to the
+      // shared copy; bookings only it has are kept and pushed up either way.
+      const localDirty = !!syncedRef.current && printOf(local) !== syncedRef.current
+      const merged = mergeStates(local, res.state, { preferLocal: localDirty, base: baseRef.current })
 
-      applyState(merged)
-      syncedRef.current = fingerprint(merged)
+      // Only touch the state when the merge actually changed something: a poll
+      // that lands mid-edit should not rebuild the list under the cursor.
+      const mergedPrint = printOf(merged)
+      if (mergedPrint !== printOf(local)) applyState(merged)
+      markSynced(res.state, res.version, merged)
       setSync({ state: 'ready', message: savedAt(res.updatedAt) })
 
       if (!merged.events.length && !res.state.events.length) setShowGate(false)
@@ -166,10 +211,10 @@ export default function App() {
         setSelected((current) => current || first)
       }
       // Local had something the shared copy did not: put it up straight away.
-      if (fingerprint(merged) !== fingerprint(res.state)) push(merged)
+      if (mergedPrint !== printOf(res.state)) push(merged)
       return res
     },
-    [applyState, push],
+    [applyState, markSynced, push],
   )
 
   // First load, then keep an eye on it while the tab is visible.
@@ -190,7 +235,7 @@ export default function App() {
   // Local edits go up after a short pause, so typing does not fire a request per keystroke.
   useEffect(() => {
     if (!passcode) return
-    if (fingerprint({ bookings, events, deleted }) === syncedRef.current) return
+    if (printOf({ bookings, events, deleted }) === syncedRef.current) return
     const timer = setTimeout(() => push(), PUSH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [bookings, events, deleted, passcode, push])
@@ -208,6 +253,10 @@ export default function App() {
 
   const useDeviceOnly = () => {
     savePasscode('')
+    clearSyncMeta()
+    baseRef.current = null
+    syncedRef.current = ''
+    versionRef.current = 0
     setPasscode('')
     passcodeRef.current = ''
     setSync({ state: 'local', message: '' })

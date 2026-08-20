@@ -5,6 +5,7 @@ import { mergeNotes } from './notes.js'
 
 const API = '/api/schedule'
 export const KEY_STORE = 't-schedule/key'
+export const META_STORE = 't-schedule/sync'
 
 export function loadPasscode() {
   try {
@@ -23,61 +24,157 @@ export function savePasscode(value) {
   }
 }
 
+/* ------------------------------------------------------- change detection */
+
+/** FNV-1a, so what is remembered about the last sync stays a few bytes per item. */
+function hash(text) {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(36)
+}
+
+// Detail and form text are edited by hand, so the whole string counts: a typo
+// fix that keeps the length the same is still a change other devices need.
+const bookingPrint = (b) => `${JSON.stringify(b.details || {})}:${b.colour || ''}:${JSON.stringify(b.rawText || '')}`
+const eventPrint = (e) =>
+  `${e.bookingId}:${e.date}:${e.time}:${e.title}:${e.amount ?? ''}:${e.colour || ''}:${JSON.stringify(e.detail || '')}`
+
+/** Same data, ignoring key order, so a pull does not trigger a pointless push. */
+export function fingerprint(state) {
+  const bookings = [...(state.bookings || [])].map((b) => `${b.id}:${bookingPrint(b)}`).sort()
+  const events = [...(state.events || [])].map((e) => `${e.id}:${eventPrint(e)}`).sort()
+  return JSON.stringify([bookings, events, [...(state.deleted || [])].sort()])
+}
+
+/** The whole state in a few characters, for "has anything changed since the last sync". */
+export function printOf(state) {
+  return hash(fingerprint(state))
+}
+
+/**
+ * One hash per booking and per order. Kept from the last sync, this is what
+ * tells a later merge which side actually changed a shared id, instead of
+ * guessing from whether the device as a whole has unsaved edits.
+ */
+export function itemPrints(state) {
+  const base = {}
+  for (const b of state.bookings || []) base[`b:${b.id}`] = hash(bookingPrint(b))
+  for (const e of state.events || []) base[`e:${e.id}`] = hash(eventPrint(e))
+  return base
+}
+
+/**
+ * What this device last had in common with the shared copy: the version it was
+ * based on, and a hash per item. Held in localStorage rather than memory, or a
+ * reload would look like a device full of unsaved edits and push its stale
+ * snapshot back over everyone else's work.
+ */
+export function loadSyncMeta() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(META_STORE) || 'null')
+    if (!saved || typeof saved.version !== 'number') return { version: 0, print: '', base: null }
+    return { version: saved.version, print: saved.print || '', base: saved.base || null }
+  } catch {
+    return { version: 0, print: '', base: null }
+  }
+}
+
+export function saveSyncMeta(meta) {
+  try {
+    localStorage.setItem(META_STORE, JSON.stringify({ v: 1, ...meta }))
+  } catch {
+    /* private mode or quota: the merge just falls back to the older guess */
+  }
+}
+
+export function clearSyncMeta() {
+  try {
+    localStorage.removeItem(META_STORE)
+  } catch {
+    /* ignore */
+  }
+}
+
+/* ------------------------------------------------------------------ merge */
+
 /**
  * Union by id, then remove anything either side deleted. Without the tombstone
  * list a delete on one device would be resurrected by the next device to sync.
  *
- * `preferLocal` decides who wins an id held by both. Pass false when this device
- * has no unsaved edits: its copy is then just a stale snapshot, and keeping it
- * would hide the other device's changes and push the old values back up.
+ * `base` is the per-item state of the last sync. When it says only one side
+ * changed an id, that side wins, whatever the rest of the device is doing: an
+ * untouched order is never pushed back over someone else's edit to it.
+ *
+ * `preferLocal` is the fallback for an id `base` says nothing about, or that both
+ * sides changed. Pass false when this device has no unsaved edits at all: its
+ * copy is then just a stale snapshot.
  */
-export function mergeStates(local, remote, { preferLocal = true } = {}) {
+export function mergeStates(local, remote, { preferLocal = true, base = null } = {}) {
   const deleted = new Set([...(remote.deleted || []), ...(local.deleted || [])])
-  const first = preferLocal ? local : remote
-  const second = preferLocal ? remote : local
+
+  const winner = (kind, print, mine, theirs) => {
+    if (!mine) return theirs
+    if (!theirs) return mine
+    const was = base?.[`${kind}:${mine.id}`]
+    if (was !== undefined) {
+      const mineChanged = hash(print(mine)) !== was
+      const theirsChanged = hash(print(theirs)) !== was
+      if (mineChanged !== theirsChanged) return mineChanged ? mine : theirs
+    }
+    return preferLocal ? mine : theirs
+  }
+
+  const index = (list) => new Map((list || []).map((item) => [item.id, item]))
+  const idsIn = (...lists) => {
+    const ids = []
+    const seen = new Set()
+    for (const list of lists) {
+      for (const item of list || []) {
+        if (seen.has(item.id)) continue
+        seen.add(item.id)
+        ids.push(item.id)
+      }
+    }
+    return ids
+  }
+
+  const localBookings = index(local.bookings)
+  const remoteBookings = index(remote.bookings)
+  const bookingIdOrder = preferLocal
+    ? idsIn(local.bookings, remote.bookings)
+    : idsIn(remote.bookings, local.bookings)
 
   const bookings = []
-  const byId = new Map()
-  for (const booking of [...(first.bookings || []), ...(second.bookings || [])]) {
-    if (deleted.has(booking.id)) continue
-    const held = byId.get(booking.id)
-    if (held) {
-      // The winner keeps its fields, but notes are written as the day goes on and
-      // often on two devices at once, so they are unioned rather than dropped.
-      const details = mergeNotes(held.details || {}, booking.details || {})
-      if (details !== held.details) Object.assign(held, { details })
-      continue
-    }
-    const copy = { ...booking }
-    byId.set(booking.id, copy)
-    bookings.push(copy)
+  for (const id of bookingIdOrder) {
+    if (deleted.has(id)) continue
+    const mine = localBookings.get(id)
+    const theirs = remoteBookings.get(id)
+    const held = winner('b', bookingPrint, mine, theirs)
+    const other = held === mine ? theirs : mine
+    // The winner keeps its fields, but notes are written as the day goes on and
+    // often on two devices at once, so they are unioned rather than dropped.
+    const details = other ? mergeNotes(held.details || {}, other.details || {}) : held.details
+    bookings.push(details === held.details ? { ...held } : { ...held, details })
   }
 
   const bookingIds = new Set(bookings.map((b) => b.id))
+  const localEvents = index(local.events)
+  const remoteEvents = index(remote.events)
+  const eventIdOrder = preferLocal ? idsIn(local.events, remote.events) : idsIn(remote.events, local.events)
+
   const events = []
-  const seenEvent = new Set()
-  for (const event of [...(first.events || []), ...(second.events || [])]) {
-    if (deleted.has(event.id) || seenEvent.has(event.id)) continue
+  for (const id of eventIdOrder) {
+    if (deleted.has(id)) continue
+    const held = winner('e', eventPrint, localEvents.get(id), remoteEvents.get(id))
     // An event whose booking was removed elsewhere goes with it.
-    if (event.bookingId && !bookingIds.has(event.bookingId)) continue
-    seenEvent.add(event.id)
-    events.push(event)
+    if (held.bookingId && !bookingIds.has(held.bookingId)) continue
+    events.push(held)
   }
 
   return { bookings, events, deleted: [...deleted].slice(-500) }
-}
-
-/** Same data, ignoring key order, so a pull does not trigger a pointless push. */
-export function fingerprint(state) {
-  const bookings = [...(state.bookings || [])]
-    .map((b) => `${b.id}:${JSON.stringify(b.details || {})}:${b.colour || ''}:${JSON.stringify(b.rawText || '')}`)
-    .sort()
-  // Detail and form text are edited by hand, so compare the whole string: a typo
-  // fix that keeps the length the same is still a change other devices need.
-  const events = [...(state.events || [])]
-    .map((e) => `${e.id}:${e.bookingId}:${e.date}:${e.time}:${e.title}:${e.amount ?? ''}:${JSON.stringify(e.detail || '')}`)
-    .sort()
-  return JSON.stringify([bookings, events, [...(state.deleted || [])].sort()])
 }
 
 async function request(method, passcode, body) {
@@ -124,11 +221,13 @@ export async function pushRemote(state, baseVersion, passcode) {
 }
 
 /** Push, and on a clash pull, merge and push once more. */
-export async function syncUp(state, baseVersion, passcode) {
+export async function syncUp(state, baseVersion, passcode, base = null) {
   const first = await pushRemote(state, baseVersion, passcode)
   if (first.status !== 'conflict') return { ...first, state }
 
-  const merged = mergeStates(state, first.state)
+  // The other device saved first. Its edits stand where this device did not
+  // touch the same order, which `base` is what makes knowable.
+  const merged = mergeStates(state, first.state, { base })
   const second = await pushRemote(merged, first.version, passcode)
   return { ...second, state: merged, merged: true }
 }
