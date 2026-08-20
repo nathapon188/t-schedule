@@ -577,6 +577,34 @@ button.link {
 .inspector-head h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
 .inspector-body { overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
 
+/* Pinned below the scrolling form, so Save is in reach from any field. */
+.inspector-save {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--line-strong);
+  background: #fbfbfd;
+  flex: none;
+}
+.inspector-save .muted { flex: 1; min-width: 0; }
+
+button.save {
+  background: var(--sel);
+  color: #fff;
+  border: 1px solid var(--sel);
+  border-radius: 7px;
+  padding: 6px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+}
+button.save:hover:not(:disabled) { background: #1660c9; border-color: #1660c9; }
+button.save:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Nothing waiting to go up: still clickable, but it stops shouting for a click. */
+button.save.clean { background: #fff; color: var(--ink); border-color: var(--line-strong); }
+button.save.clean:hover:not(:disabled) { background: #f2f2f4; border-color: var(--line-strong); }
+
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 11px; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .panel-head div { display: flex; gap: 5px; }

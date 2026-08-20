@@ -52,8 +52,24 @@ export default function Inspector({
   onSaveFile,
   onClear,
   onClose,
+  onSave,
+  unsaved,
 }) {
   const [mergeTarget, setMergeTarget] = useState('')
+
+  const saving = sync?.state === 'saving'
+  const shareable = !!sync && sync.state !== 'local'
+  // What the bar says next to the button. An edit that cannot reach the shared
+  // copy has to say so plainly: it is still on this device and nowhere else.
+  const saveNote = saving
+    ? 'Sending to the other devices…'
+    : !shareable
+      ? 'Kept in this browser. Share with other devices to sync it.'
+      : unsaved
+        ? 'Changes on this device are not shared yet.'
+        : sync.state === 'ready'
+          ? sync.message || 'Everything is saved and shared.'
+          : `${syncLabel || sync.state}: the last changes have not gone up.`
 
   return (
     <aside className="inspector">
@@ -308,6 +324,18 @@ export default function Inspector({
           {!!link && <p className="muted link-preview">{link}</p>}
         </section>
       </div>
+
+      <footer className="inspector-save">
+        <button
+          type="button"
+          className={`save ${unsaved || !shareable ? '' : 'clean'}`}
+          onClick={onSave}
+          disabled={saving}
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <span className="muted">{saveNote}</span>
+      </footer>
     </aside>
   )
 }

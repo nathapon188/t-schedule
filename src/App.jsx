@@ -95,6 +95,7 @@ export default function App() {
   // localStorage: a reload with no memory of the last sync looks like a device
   // full of unsaved edits, and pushes its stale snapshot over everyone else's.
   const metaRef = useRef(openedFromLink ? { version: 0, print: '', base: null } : loadSyncMeta()).current
+  const pushTimer = useRef(null)
   const versionRef = useRef(metaRef.version)
   const syncedRef = useRef(metaRef.print)
   const baseRef = useRef(metaRef.base)
@@ -168,7 +169,7 @@ export default function App() {
 
   const push = useCallback(async (override) => {
     const code = passcodeRef.current
-    if (!code) return
+    if (!code) return null
     const state = override || stateRef.current
     setSync((s) => ({ ...s, state: 'saving' }))
     const res = await syncUp(state, versionRef.current, code, baseRef.current)
@@ -179,6 +180,7 @@ export default function App() {
     } else {
       setSync({ state: res.status, message: res.message || '' })
     }
+    return res
   }, [applyState, markSynced])
 
   const pull = useCallback(
@@ -239,9 +241,26 @@ export default function App() {
   useEffect(() => {
     if (!passcode) return
     if (printOf({ bookings, events, deleted }) === syncedRef.current) return
-    const timer = setTimeout(() => push(), PUSH_DEBOUNCE_MS)
-    return () => clearTimeout(timer)
+    pushTimer.current = setTimeout(() => push(), PUSH_DEBOUNCE_MS)
+    return () => clearTimeout(pushTimer.current)
   }, [bookings, events, deleted, passcode, push])
+
+  /**
+   * The Save button. The edits are already in this browser, so what this really
+   * does is stop waiting for the debounce and put them on the shared copy now,
+   * while the form is still in front of whoever typed them.
+   */
+  const saveNow = useCallback(async () => {
+    clearTimeout(pushTimer.current)
+    const kept = saveLocal(stateRef.current)
+    if (!passcodeRef.current) {
+      flash(kept ? 'Saved on this device.' : 'This browser will not let the schedule be saved.')
+      return
+    }
+    const res = await push()
+    if (res?.status === 'ok') flash(res.merged ? 'Saved, and merged with an edit from another device.' : 'Saved and synced.')
+    else flash(`Not synced: ${SYNC_LABELS[res?.status] || 'sync failed'}. The edits are still on this device.`)
+  }, [push])
 
   const connect = async (code) => {
     savePasscode(code)
@@ -605,6 +624,14 @@ export default function App() {
     return `${MONTHS[month.getMonth()]} ${month.getFullYear()}`
   }, [view, anchor, month, selected])
 
+  // Whether anything typed on the form is not on the shared copy yet, so the
+  // Save button can say which. `sync` is a dependency because syncedRef moves
+  // when a push lands, and that is the render that has to stop saying unsaved.
+  const unsaved = useMemo(
+    () => !!passcode && printOf({ bookings, events, deleted }) !== syncedRef.current,
+    [bookings, events, deleted, passcode, sync],
+  )
+
   const localhostLink = /localhost|127\.0\.0\.1/.test(linkBase)
   const syncBad = ['unauthorised', 'not_configured', 'offline', 'error', 'too_large'].includes(sync.state)
 
@@ -826,6 +853,8 @@ export default function App() {
               onConnect={() => setShowGate(true)}
               onDisconnect={useDeviceOnly}
               onSyncNow={() => pull()}
+              onSave={saveNow}
+              unsaved={unsaved}
             />
           )}
         </div>
