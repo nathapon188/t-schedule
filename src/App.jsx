@@ -56,7 +56,6 @@ export default function App() {
   // A shared link wins over whatever this browser remembers.
   const initial = useRef(stateFromHash() || loadLocal() || { bookings: [], events: [], deleted: [] }).current
   const openedFromLink = useRef(/[#&]s=/.test(window.location.hash)).current
-  const firstDate = initial.events.length ? [...initial.events].map((e) => e.date).sort()[0] : null
 
   const [bookings, setBookings] = useState(initial.bookings)
   const [events, setEvents] = useState(initial.events)
@@ -67,8 +66,10 @@ export default function App() {
   const [status, setStatus] = useState(null)
   const [error, setError] = useState(null)
   const [note, setNote] = useState(null)
-  const [anchor, setAnchor] = useState(firstDate ? fromKey(firstDate) : new Date())
-  const [selected, setSelected] = useState(firstDate)
+  // Open on this month, not on the oldest booking still on the calendar: the
+  // day being looked up is nearly always a coming one.
+  const [anchor, setAnchor] = useState(() => new Date())
+  const [selected, setSelected] = useState(() => toKey(new Date()))
   const [view, setView] = useState('Month')
   const [showText, setShowText] = useState(false)
   const [viewMode, setViewMode] = useState(() => (window.innerWidth <= MOBILE_WIDTH ? 'mobile' : 'desktop'))
