@@ -201,6 +201,21 @@ node scripts/test-ocr.mjs path\to\form.png  # full OCR pass on a real image
 `test-ocr.mjs` downloads the English OCR model on first run, so it needs
 internet once.
 
+## Keeping a tablet awake
+
+The toolbar has a **Keep screen on** tick box. Ticked, the tab asks Windows to
+hold off dimming and locking while the calendar is on screen, which is what a
+tablet sitting on the bench needs. The choice is remembered per device.
+
+Worth knowing:
+
+- It only holds while this tab is visible. Switch app or lock the tablet by
+  hand and Windows takes the lock back; coming back to the tab asks again.
+- It needs Edge or Chrome over https (or localhost). On anything else the box
+  is greyed out, and the screen timeout has to be changed in Windows settings.
+- A tablet low on battery may refuse it. The box stays ticked but stops
+  showing as held, so it takes effect again as soon as the tablet is charged.
+
 ## Layout
 
 - `src/lib/parse.js` — form text to dates, orders and details
@@ -209,6 +224,7 @@ internet once.
 - `src/lib/notes.js` — booking notes: list, merge, flatten for export
 - `src/lib/storage.js` — localStorage, JSON file, URL link encoding
 - `src/lib/sync.js` — shared store client, merge and conflict retry
+- `src/lib/wakelock.js` — the Keep screen on tick box, holds a tablet awake
 - `netlify/functions/schedule.mjs` — the shared store itself
 - `src/lib/ics.js` — calendar export
 - `src/components/` — sidebar, month/week/day/year views, editing panel

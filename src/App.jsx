@@ -15,6 +15,7 @@ import { buildBooking } from './lib/bookings.js'
 import { parseDietary, mergeDietary, looksLikeDietaryList } from './lib/dietary.js'
 import { addNote, concatNotes, setNotes } from './lib/notes.js'
 import { MONTHS, fromKey, toKey, startOfMonth, startOfWeek, addDays, addMonths, formatLong, formatTime } from './lib/dates.js'
+import { useKeepAwake, wakeLockSupported, loadKeepAwake, saveKeepAwake } from './lib/wakelock.js'
 import { loadLocal, saveLocal, clearLocal, stateFromHash, shareLink, downloadJson, readJsonFile } from './lib/storage.js'
 import {
   loadPasscode,
@@ -80,6 +81,8 @@ export default function App() {
   const [qr, setQr] = useState(null)
   const [sourceFilter, setSourceFilter] = useState('')
   const [importMode, setImportMode] = useState('auto') // auto | booking | dietary
+  // Tablets left on the bench are meant to stay readable without a tap.
+  const [keepAwake, setKeepAwake] = useState(() => loadKeepAwake())
 
   // Shared store
   const [passcode, setPasscode] = useState(() => loadPasscode())
@@ -633,6 +636,13 @@ export default function App() {
     [bookings, events, deleted, passcode, sync],
   )
 
+  const awakeSupported = wakeLockSupported()
+  const awakeHeld = useKeepAwake(keepAwake)
+  const toggleKeepAwake = (on) => {
+    setKeepAwake(on)
+    saveKeepAwake(on)
+  }
+
   const localhostLink = /localhost|127\.0\.0\.1/.test(linkBase)
   const syncBad = ['unauthorised', 'not_configured', 'offline', 'error', 'too_large'].includes(sync.state)
 
@@ -713,6 +723,22 @@ export default function App() {
                 </button>
               ))}
             </div>
+            <label
+              className={`awake ${keepAwake && awakeHeld ? 'on' : ''}`}
+              title={
+                awakeSupported
+                  ? 'Stop this tablet dimming and locking while the calendar is open'
+                  : 'This browser cannot hold the screen on. Use Windows power settings instead.'
+              }
+            >
+              <input
+                type="checkbox"
+                checked={keepAwake}
+                disabled={!awakeSupported}
+                onChange={(e) => toggleKeepAwake(e.target.checked)}
+              />
+              Keep screen on
+            </label>
             <button type="button" className="ghost" disabled={!events.length} onClick={exportSchedule}>
               Export .ics
             </button>

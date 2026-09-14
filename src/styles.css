@@ -62,6 +62,27 @@ button.ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 button.ghost.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 button.ghost.danger { color: var(--accent); }
 
+/* Tick box that holds a tablet's screen on. Sized for a finger, not a mouse. */
+label.awake {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 4px 11px 4px 9px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+label.awake:hover { background: #f2f2f4; }
+label.awake input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+label.awake.on { border-color: var(--accent); color: var(--accent); }
+label.awake:has(input:disabled) { opacity: 0.4; cursor: not-allowed; }
+label.awake:has(input:disabled) input { cursor: not-allowed; }
+
 button.icon {
   background: none;
   border: none;
@@ -740,6 +761,8 @@ input:focus, textarea:focus { outline: 2px solid var(--sel); outline-offset: -1p
 .shell.is-mobile .toolbar-right { width: 100%; justify-content: space-between; }
 .shell.is-mobile .period { font-size: 15px; }
 .shell.is-mobile .segmented button { padding: 5px 8px; font-size: 12px; }
+.shell.is-mobile label.awake { padding: 6px 10px; font-size: 12px; }
+.shell.is-mobile label.awake input { width: 18px; height: 18px; }
 .shell.is-mobile .canvas { display: block; }
 .shell.is-mobile .stage { overflow: visible; }
 .shell.is-mobile .month-grid { grid-auto-rows: minmax(58px, auto); }
